@@ -11,6 +11,7 @@
     "isolatedModules": true,
     "rootDir": "src",
     "baseUrl": ".",
+    "types": ["node"],
     "paths": {
       "@/*": ["src/*"]
     }

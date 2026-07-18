@@ -6,6 +6,7 @@ import { OnlineLobbyScreen } from './screens/OnlineLobbyScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { useBotPlayers } from './hooks/useBotPlayers';
 import { useMahjongGame } from './hooks/useMahjongGame';
+import { useOnlineGame } from './hooks/useOnlineGame';
 import type { Character } from './data/characters';
 import './App.css';
 
@@ -28,11 +29,27 @@ function OfflineGameSession({
 
   return (
     <GameTable
+      mode="offline"
       gameApi={gameApi}
       character={character}
-      onChangeCharacter={onChangeCharacter}
+      onExit={onChangeCharacter}
     />
   );
+}
+
+function OnlineSession({ onExit }: { onExit: () => void }) {
+  const online = useOnlineGame();
+
+  const handleExit = () => {
+    online.disconnect();
+    onExit();
+  };
+
+  if (online.inGame && online.view) {
+    return <GameTable mode="online" online={online} onExit={handleExit} />;
+  }
+
+  return <OnlineLobbyScreen online={online} onBack={handleExit} />;
 }
 
 export default function App() {
@@ -53,7 +70,7 @@ export default function App() {
       )}
 
       {screen.name === 'online' && (
-        <OnlineLobbyScreen onBack={() => setScreen({ name: 'main' })} />
+        <OnlineSession onExit={() => setScreen({ name: 'main' })} />
       )}
 
       {screen.name === 'offline-select' && (

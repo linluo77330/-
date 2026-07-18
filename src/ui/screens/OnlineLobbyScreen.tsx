@@ -1,33 +1,208 @@
+import { useState } from 'react';
+import type { PlayerIndex } from '@/core/types';
 import { ScreenShell } from '../components/ScreenShell';
+import type { OnlineGameApi } from '../hooks/useOnlineGame';
+
+const DEFAULT_WS = 'ws://localhost:3001';
+const SEAT_LABELS = ['东（0 号）', '南（1 号）', '西（2 号）', '北（3 号）'];
 
 interface OnlineLobbyScreenProps {
+  online: OnlineGameApi;
   onBack: () => void;
 }
 
-export function OnlineLobbyScreen({ onBack }: OnlineLobbyScreenProps) {
+export function OnlineLobbyScreen({ online, onBack }: OnlineLobbyScreenProps) {
+  const [serverUrl, setServerUrl] = useState(DEFAULT_WS);
+  const [roomId, setRoomId] = useState('room1');
+  const [name, setName] = useState('');
+
+  const {
+    connected,
+    connecting,
+    roomState,
+    playerIndex,
+    isHost,
+    error,
+    connect,
+    disconnect,
+    ready,
+    startGame,
+    addBot,
+    removeBot,
+  } = online;
+
+  const seats = roomState?.seats ?? [];
+  const occupiedCount = seats.filter((s) => s.kind !== 'empty').length;
+  const humanSeats = seats.filter((s) => s.kind === 'human');
+  const allHumansReady = humanSeats.length > 0 && humanSeats.every((s) => s.ready && s.connected);
+  const canStart = occupiedCount >= 4 && allHumansReady;
+  const mySeat = playerIndex !== null ? seats[playerIndex] : null;
+  const myReady = mySeat?.kind === 'human' && mySeat.ready;
+  const emptyCount = seats.filter((s) => s.kind === 'empty').length;
+
+  const handleConnect = () => {
+    const trimmedName = name.trim();
+    const trimmedRoom = roomId.trim();
+    if (!trimmedName || !trimmedRoom) return;
+    connect(trimmedRoom, trimmedName, serverUrl.trim() || DEFAULT_WS);
+  };
+
+  const handleBack = () => {
+    disconnect();
+    onBack();
+  };
+
   return (
     <ScreenShell
       title="多人联机"
-      subtitle="联机大厅 UI 开发中"
+      subtitle={
+        connected
+          ? `房间 ${roomState?.roomId ?? roomId}${isHost ? ' · 你是房主' : ''}`
+          : '连接服务器并加入房间'
+      }
       footer={
-        <button type="button" className="screen-panel__back btn btn--ghost" onClick={onBack}>
-          返回主菜单
-        </button>
+        connected ? (
+          <button type="button" className="screen-panel__back btn btn--ghost" onClick={handleBack}>
+            断开并返回
+          </button>
+        ) : (
+          <button type="button" className="screen-panel__back btn btn--ghost" onClick={onBack}>
+            返回主菜单
+          </button>
+        )
       }
     >
-      <div className="placeholder-panel">
-        <p className="placeholder-panel__lead">
-          服务端与 WebSocket 协议已就绪，游戏内大厅界面即将接入。
-        </p>
-        <ul className="placeholder-panel__list">
-          <li>创建 / 加入房间</li>
-          <li>玩家准备与开局</li>
-          <li>在线对战与同步</li>
-        </ul>
-        <p className="placeholder-panel__hint">
-          现阶段可参考项目文档 <code>docs/联机参与说明.md</code> 手动联机测试。
-        </p>
-      </div>
+      {!connected ? (
+        <div className="online-lobby__form">
+          <label className="online-lobby__field">
+            <span>服务器地址</span>
+            <input
+              type="text"
+              value={serverUrl}
+              onChange={(e) => setServerUrl(e.target.value)}
+              placeholder={DEFAULT_WS}
+            />
+          </label>
+          <label className="online-lobby__field">
+            <span>房间号</span>
+            <input
+              type="text"
+              value={roomId}
+              onChange={(e) => setRoomId(e.target.value)}
+              placeholder="room1"
+            />
+          </label>
+          <label className="online-lobby__field">
+            <span>昵称</span>
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder="你的昵称"
+              maxLength={12}
+            />
+          </label>
+          {error && <p className="online-lobby__error">{error}</p>}
+          <button
+            type="button"
+            className="btn btn--primary online-lobby__connect"
+            disabled={connecting || !name.trim() || !roomId.trim()}
+            onClick={handleConnect}
+          >
+            {connecting ? '连接中…' : '加入房间'}
+          </button>
+          <p className="online-lobby__hint">需先在本机运行 npm run server</p>
+        </div>
+      ) : (
+        <div className="online-lobby__room">
+          <div className="online-lobby__seats">
+            {SEAT_LABELS.map((label, i) => {
+              const seat = seats.find((s) => s.playerIndex === i);
+              const kind = seat?.kind ?? 'empty';
+              const isBot = kind === 'bot';
+              const isHuman = kind === 'human';
+              const isEmpty = kind === 'empty';
+
+              return (
+                <div
+                  key={label}
+                  className={[
+                    'online-lobby__seat',
+                    !isEmpty ? 'online-lobby__seat--filled' : '',
+                    isBot ? 'online-lobby__seat--bot' : '',
+                    seat?.ready ? 'online-lobby__seat--ready' : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                >
+                  <span className="online-lobby__seat-label">{label}</span>
+                  <span className="online-lobby__seat-name">
+                    {isEmpty ? '空位' : seat!.name}
+                    {isBot && ' 🤖'}
+                    {roomState?.hostPlayerIndex === i && isHuman && ' · 房主'}
+                  </span>
+                  <span className="online-lobby__seat-status">
+                    {isEmpty && '—'}
+                    {isBot && '机器人'}
+                    {isHuman && (seat!.ready ? '已准备' : '未准备')}
+                  </span>
+                  {isHost && isBot && (
+                    <button
+                      type="button"
+                      className="online-lobby__seat-action btn btn--ghost"
+                      onClick={() => removeBot(i as PlayerIndex)}
+                    >
+                      移除
+                    </button>
+                  )}
+                  {isHost && isEmpty && (
+                    <button
+                      type="button"
+                      className="online-lobby__seat-action btn btn--ghost"
+                      onClick={() => addBot(i as PlayerIndex)}
+                    >
+                      + 机器人
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {error && <p className="online-lobby__error">{error}</p>}
+
+          <div className="online-lobby__actions">
+            {mySeat?.kind === 'human' && !myReady && (
+              <button type="button" className="btn btn--primary" onClick={ready}>
+                准备
+              </button>
+            )}
+            {myReady && !isHost && (
+              <span className="online-lobby__waiting">已准备，等待房主开局…</span>
+            )}
+            {isHost && emptyCount > 0 && (
+              <button type="button" className="btn btn--ghost" onClick={() => addBot()}>
+                添加机器人（空位 {emptyCount}）
+              </button>
+            )}
+            {isHost && (
+              <button
+                type="button"
+                className="btn btn--primary"
+                disabled={!canStart}
+                onClick={startGame}
+              >
+                开始游戏
+              </button>
+            )}
+          </div>
+
+          <p className="online-lobby__hint">
+            玩家 + 机器人共 4 人即可开局（当前 {occupiedCount}/4）
+            {humanSeats.length > 0 && !allHumansReady && ' · 等待所有玩家准备'}
+          </p>
+        </div>
+      )}
     </ScreenShell>
   );
 }

@@ -1,63 +1,204 @@
-import type { PlayerIndex, Tile as TileType, WildcardConfig } from '@/core/types';
+import { buildPlayerView } from '@/core/playerView';
+import type { PlayerIndex, Tile as TileType } from '@/core/types';
 import { wildcardDescription } from '@/core/wildcard';
+import { getTenpaiTiles } from '@/core/winCheck';
+import type { Character } from '../data/characters';
+import type { OnlineGameApi } from '../hooks/useOnlineGame';
+import type { useMahjongGame } from '../hooks/useMahjongGame';
+import { getVisibleHand } from '../utils/handView';
 import { tileLabel, PLAYER_NAMES } from '../utils/tileLabels';
 import { ActionPanel } from './ActionPanel';
 import { PlayerSeat } from './PlayerSeat';
 import { Tile } from './Tile';
-import { getTenpaiTiles } from '@/core/winCheck';
-import type { Character } from '../data/characters';
-import type { useMahjongGame } from '../hooks/useMahjongGame';
-
-const HUMAN: PlayerIndex = 0;
 
 type GameApi = ReturnType<typeof useMahjongGame>;
 
-interface GameTableProps {
-  gameApi: GameApi;
-  character: Character;
-  onChangeCharacter: () => void;
+type GameTableProps =
+  | {
+      mode: 'offline';
+      gameApi: GameApi;
+      character: Character;
+      onExit: () => void;
+    }
+  | {
+      mode: 'online';
+      online: OnlineGameApi;
+      onExit: () => void;
+    };
+
+const SEAT_POSITIONS: ('bottom' | 'left' | 'top' | 'right')[] = ['bottom', 'left', 'top', 'right'];
+
+function relativeSeat(viewer: PlayerIndex, absolute: PlayerIndex): number {
+  return (absolute - viewer + 4) % 4;
 }
 
-export function GameTable({ gameApi, character, onChangeCharacter }: GameTableProps) {
-  const { snapshot, start, discard, respondOption, pass, log, drawnTileId } = gameApi;
+export function GameTable(props: GameTableProps) {
+  if (props.mode === 'offline') {
+    return <OfflineGameTable {...props} />;
+  }
+  return <OnlineGameTable {...props} />;
+}
 
-  const humanState = snapshot.players[HUMAN];
+function OfflineGameTable({
+  gameApi,
+  character,
+  onExit,
+}: Extract<GameTableProps, { mode: 'offline' }>) {
+  const { snapshot, start, discard, respondOption, pass, log, drawnTileId } = gameApi;
+  const humanPlayer: PlayerIndex = 0;
+  const view = buildPlayerView(snapshot, humanPlayer);
+  const seatNames = [...PLAYER_NAMES];
+
+  const humanState = view.players[humanPlayer];
+  const visibleHand = getVisibleHand(humanState);
   const waitingTiles =
-    snapshot.phase === 'discard' && snapshot.currentPlayer === HUMAN
-      ? getTenpaiTiles(humanState.hand, humanState.melds, snapshot.wildcard)
+    view.phase === 'discard' && view.currentPlayer === humanPlayer && visibleHand
+      ? getTenpaiTiles(visibleHand, humanState.melds, view.wildcard)
       : [];
 
   const handleTileClick = (tile: TileType) => {
-    if (snapshot.phase !== 'discard' || snapshot.currentPlayer !== HUMAN) return;
+    if (view.phase !== 'discard' || view.currentPlayer !== humanPlayer) return;
     discard(tile.id);
   };
 
-  const seats: { index: PlayerIndex; position: 'bottom' | 'left' | 'top' | 'right' }[] = [
-    { index: 0, position: 'bottom' },
-    { index: 1, position: 'left' },
-    { index: 2, position: 'top' },
-    { index: 3, position: 'right' },
-  ];
+  return (
+    <GameTableLayout
+      view={view}
+      humanPlayer={humanPlayer}
+      seatNames={seatNames}
+      drawnTileId={drawnTileId}
+      log={log}
+      waitingTiles={waitingTiles}
+      onTileClick={handleTileClick}
+      onRespond={respondOption}
+      onPass={() => pass(humanPlayer)}
+      onStart={() => start(0)}
+      showStart
+      headerCharacter={character}
+      onExit={onExit}
+      exitLabel="换角色"
+    />
+  );
+}
+
+function OnlineGameTable({ online, onExit }: Extract<GameTableProps, { mode: 'online' }>) {
+  const { view, playerIndex, roomState, drawnTileId, log, discard, respondOption, pass } = online;
+
+  if (!view || playerIndex === null) {
+    return null;
+  }
+
+  const seatNames =
+    roomState?.seats.map((s) => s.name || PLAYER_NAMES[s.playerIndex]) ?? [...PLAYER_NAMES];
+
+  const humanState = view.players[playerIndex];
+  const visibleHand = getVisibleHand(humanState);
+  const waitingTiles =
+    view.phase === 'discard' && view.currentPlayer === playerIndex && visibleHand
+      ? getTenpaiTiles(visibleHand, humanState.melds, view.wildcard)
+      : [];
+
+  const handleTileClick = (tile: TileType) => {
+    if (view.phase !== 'discard' || view.currentPlayer !== playerIndex) return;
+    discard(tile.id);
+  };
+
+  return (
+    <GameTableLayout
+      view={view}
+      humanPlayer={playerIndex}
+      seatNames={seatNames}
+      drawnTileId={drawnTileId}
+      log={log}
+      waitingTiles={waitingTiles}
+      onTileClick={handleTileClick}
+      onRespond={respondOption}
+      onPass={pass}
+      showStart={false}
+      headerOnline={{
+        name: seatNames[playerIndex] ?? '你',
+        roomId: roomState?.roomId ?? '',
+      }}
+      onExit={onExit}
+      exitLabel="离开对局"
+    />
+  );
+}
+
+interface GameTableLayoutProps {
+  view: import('@/core/types').PlayerView;
+  humanPlayer: PlayerIndex;
+  seatNames: string[];
+  drawnTileId: string | null;
+  log: string[];
+  waitingTiles: TileType[];
+  onTileClick: (tile: TileType) => void;
+  onRespond: GameApi['respondOption'];
+  onPass: () => void;
+  onStart?: () => void;
+  showStart: boolean;
+  headerCharacter?: Character;
+  headerOnline?: { name: string; roomId: string };
+  onExit: () => void;
+  exitLabel: string;
+}
+
+function GameTableLayout({
+  view,
+  humanPlayer,
+  seatNames,
+  drawnTileId,
+  log,
+  waitingTiles,
+  onTileClick,
+  onRespond,
+  onPass,
+  onStart,
+  showStart,
+  headerCharacter,
+  headerOnline,
+  onExit,
+  exitLabel,
+}: GameTableLayoutProps) {
+  const seats = ([0, 1, 2, 3] as PlayerIndex[]).map((index) => ({
+    index,
+    position: SEAT_POSITIONS[relativeSeat(humanPlayer, index)],
+  }));
 
   return (
     <div className="game-layout">
       <header className="game-header">
         <div className="game-header__row">
-          <div className="game-header__character" style={{ borderColor: character.accent }}>
-            <span className="game-header__character-badge" style={{ background: character.accent }}>
-              {character.name.slice(-1)}
-            </span>
-            <div>
-              <strong>{character.name}</strong>
-              <span className="game-header__character-tag">{character.tagline}</span>
+          {headerCharacter && (
+            <div className="game-header__character" style={{ borderColor: headerCharacter.accent }}>
+              <span
+                className="game-header__character-badge"
+                style={{ background: headerCharacter.accent }}
+              >
+                {headerCharacter.name.slice(-1)}
+              </span>
+              <div>
+                <strong>{headerCharacter.name}</strong>
+                <span className="game-header__character-tag">{headerCharacter.tagline}</span>
+              </div>
             </div>
-          </div>
+          )}
+          {headerOnline && (
+            <div className="game-header__character game-header__character--online">
+              <div>
+                <strong>{headerOnline.name}</strong>
+                <span className="game-header__character-tag">房间 {headerOnline.roomId}</span>
+              </div>
+            </div>
+          )}
           <div className="game-header__title">
             <h1>技能麻将</h1>
-            <p className="game-header__sub">基础麻将对局 · 事件驱动引擎</p>
+            <p className="game-header__sub">
+              {headerOnline ? '多人联机 · 在线对局' : '离线单机 · 事件驱动引擎'}
+            </p>
           </div>
-          <button type="button" className="btn btn--ghost game-header__back" onClick={onChangeCharacter}>
-            换角色
+          <button type="button" className="btn btn--ghost game-header__back" onClick={onExit}>
+            {exitLabel}
           </button>
         </div>
       </header>
@@ -68,46 +209,48 @@ export function GameTable({ gameApi, character, onChangeCharacter }: GameTablePr
             <PlayerSeat
               key={index}
               playerIndex={index}
-              state={snapshot.players[index]}
-              isDealer={snapshot.dealer === index}
-              isActive={snapshot.currentPlayer === index}
-              isHuman={index === HUMAN}
+              state={view.players[index]}
+              isDealer={view.dealer === index}
+              isActive={view.currentPlayer === index}
+              isHuman={index === humanPlayer}
               position={position}
-              name={PLAYER_NAMES[index]}
-              wildcard={snapshot.wildcard}
-              highlightTileId={index === HUMAN ? drawnTileId : null}
-              onTileClick={index === HUMAN ? handleTileClick : undefined}
+              name={seatNames[index] ?? PLAYER_NAMES[index]}
+              wildcard={view.wildcard}
+              highlightTileId={index === humanPlayer ? drawnTileId : null}
+              onTileClick={index === humanPlayer ? onTileClick : undefined}
             />
           ))}
 
           <div className="game-table__center">
             <div className="center-info">
-              {snapshot.wildcard && (
+              {view.wildcard && (
                 <div className="center-info__wildcard">
                   <div className="center-info__wildcard-label">万能牌</div>
-                  <Tile tile={snapshot.wildcard.indicator} size="sm" />
+                  <Tile tile={view.wildcard.indicator} size="sm" />
                   <div className="center-info__wildcard-desc">
-                    {wildcardDescription(snapshot.wildcard, (t) => tileLabel(t as TileType))}
+                    {wildcardDescription(view.wildcard, (t) => tileLabel(t as TileType))}
                   </div>
                 </div>
               )}
-              <div className="center-info__turn">当前：{PLAYER_NAMES[snapshot.currentPlayer]}</div>
-              {snapshot.phase === 'response' && snapshot.responseLevel && (
+              <div className="center-info__turn">
+                当前：{seatNames[view.currentPlayer] ?? PLAYER_NAMES[view.currentPlayer]}
+              </div>
+              {view.phase === 'response' && view.responseLevel && (
                 <div className="center-info__response">
                   等待【
-                  {snapshot.responseLevel === 'chi'
+                  {view.responseLevel === 'chi'
                     ? '吃'
-                    : snapshot.responseLevel === 'pong'
+                    : view.responseLevel === 'pong'
                       ? '碰'
-                      : snapshot.responseLevel === 'kong'
+                      : view.responseLevel === 'kong'
                         ? '杠'
                         : '胡'}
                   】
                 </div>
               )}
-              {snapshot.lastDiscard && snapshot.phase === 'response' && (
+              {view.lastDiscard && view.phase === 'response' && (
                 <div className="center-info__last">
-                  <Tile tile={snapshot.lastDiscard.tile} size="md" />
+                  <Tile tile={view.lastDiscard.tile} size="md" />
                 </div>
               )}
               {waitingTiles.length > 0 && (
@@ -121,11 +264,12 @@ export function GameTable({ gameApi, character, onChangeCharacter }: GameTablePr
       </div>
 
       <ActionPanel
-        snapshot={snapshot}
-        humanPlayer={HUMAN}
-        onStart={() => start(0)}
-        onRespond={respondOption}
-        onPass={() => pass(HUMAN)}
+        view={view}
+        humanPlayer={humanPlayer}
+        onStart={onStart}
+        onRespond={onRespond}
+        onPass={onPass}
+        showStart={showStart}
       />
 
       <aside className="game-log">

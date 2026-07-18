@@ -1,26 +1,21 @@
-import type { GameSnapshot, PlayerIndex, ResponseOption } from '@/core/types';
+import type { PlayerIndex, PlayerView, ResponseOption } from '@/core/types';
 import { ACTION_LABELS, PLAYER_NAMES } from '../utils/tileLabels';
 import { Tile } from './Tile';
 import { ResponseActionButton } from './ResponseActionButton';
 
 interface ResponsePanelProps {
-  snapshot: GameSnapshot;
+  view: PlayerView;
   humanPlayer: PlayerIndex;
   onRespond: (option: ResponseOption) => void;
   onPass: () => void;
 }
 
-export function ResponsePanel({
-  snapshot,
-  humanPlayer,
-  onRespond,
-  onPass,
-}: ResponsePanelProps) {
-  const { phase, lastDiscard, pendingResponses, responseLevel } = snapshot;
+export function ResponsePanel({ view, humanPlayer, onRespond, onPass }: ResponsePanelProps) {
+  const { phase, lastDiscard, pendingResponses, responseLevel } = view;
   const isActive = phase === 'response' && lastDiscard !== null;
 
   const myOptions = isActive ? pendingResponses.filter((o) => o.player === humanPlayer) : [];
-  const othersActive = isActive ? pendingResponses.filter((o) => o.player !== humanPlayer) : [];
+  const othersActive = isActive ? pendingResponses.length > myOptions.length : false;
   const levelLabel = responseLevel ? ACTION_LABELS[responseLevel] : '';
 
   return (
@@ -31,7 +26,7 @@ export function ResponsePanel({
             <span className="response-panel__tag">响应 · {levelLabel}</span>
             <span>{PLAYER_NAMES[lastDiscard!.from]} 打出</span>
             <Tile tile={lastDiscard!.tile} size="sm" />
-            {othersActive.length > 0 && myOptions.length === 0 && (
+            {othersActive && myOptions.length === 0 && (
               <span className="response-panel__wait">等待其他玩家…</span>
             )}
           </div>

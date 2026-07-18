@@ -1,5 +1,5 @@
-import type { Meld, PlayerIndex, PlayerState, Tile as TileType, WildcardConfig } from '@/core/types';
-import { isWildcardTile } from '@/core/wildcard';
+import type { Meld, PlayerIndex, PlayerStateView, Tile as TileType, WildcardConfig } from '@/core/types';
+import { resolveHandTiles } from '../utils/handView';
 import { Tile, type TileSize } from './Tile';
 import { TileRow } from './TileRow';
 
@@ -37,7 +37,7 @@ export function MeldGroup({ melds, size = 'xs' }: MeldGroupProps) {
 
 interface PlayerSeatProps {
   playerIndex: PlayerIndex;
-  state: PlayerState;
+  state: PlayerStateView;
   isDealer: boolean;
   isActive: boolean;
   isHuman: boolean;
@@ -59,21 +59,19 @@ export function PlayerSeat({
   highlightTileId,
   onTileClick,
 }: PlayerSeatProps) {
-  const sortedHand = [...state.hand].sort((a, b) => {
-    const suitOrder = { wan: 0, tong: 1, tiao: 2, feng: 3, dragon: 4 };
-    const sd = suitOrder[a.suit] - suitOrder[b.suit];
-    return sd !== 0 ? sd : a.rank - b.rank;
-  });
-
+  const { tiles: handTiles, faceDown } = resolveHandTiles(state.hand);
   const isSide = position === 'left' || position === 'right';
   const riverCols: 3 | 6 = isSide ? 3 : 6;
+  const hiddenCount = state.hand.kind === 'hidden' ? state.hand.count : 0;
 
   return (
     <div className={`player-seat player-seat--${position} ${isActive ? 'player-seat--active' : ''}`}>
       <div className="player-seat__header">
         <span className="player-seat__name">{name}</span>
         {isDealer && <span className="player-seat__dealer">庄</span>}
-        {!isHuman && <span className="player-seat__count">{state.hand.length} 张</span>}
+        {!isHuman && hiddenCount > 0 && (
+          <span className="player-seat__count">{hiddenCount} 张</span>
+        )}
       </div>
 
       <div className="player-seat__zones">
@@ -108,9 +106,9 @@ export function PlayerSeat({
         <div className="player-seat__zone player-seat__zone--hand">
           <span className="player-seat__zone-label">手牌</span>
           <div className="player-seat__zone-body player-seat__hand-tiles">
-            {isHuman ? (
+            {isHuman && !faceDown ? (
               <TileRow
-                tiles={sortedHand}
+                tiles={handTiles}
                 size="lg"
                 onTileClick={onTileClick}
                 spaced
@@ -119,8 +117,8 @@ export function PlayerSeat({
               />
             ) : (
               <TileRow
-                tiles={sortedHand}
-                faceDown
+                tiles={handTiles}
+                faceDown={faceDown}
                 size="sm"
                 handColumns={isSide ? 2 : undefined}
                 spaced

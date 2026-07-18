@@ -23,7 +23,7 @@ export function MainMenuScreen({ onOffline, onOnline, onSettings }: MainMenuScre
             🌐
           </span>
           <span className="main-menu__mode-title">多人联机</span>
-          <span className="main-menu__mode-desc">与玩家在线对战（大厅开发中）</span>
+          <span className="main-menu__mode-desc">与 3 名玩家在线对战</span>
         </button>
       </div>
 
