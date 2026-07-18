@@ -3,7 +3,7 @@ import type { PlayerIndex, ResponseAction } from '../core/types.js';
 /** ── 客户端 → 服务端 ── */
 
 export type ClientMessage =
-  | { type: 'join_room'; roomId: string; name: string }
+  | { type: 'join_room'; roomId: string; name: string; characterId?: string }
   | { type: 'ready' }
   | { type: 'start_game' }
   | { type: 'add_bot'; seatIndex?: PlayerIndex }
@@ -15,7 +15,11 @@ export type ClientMessage =
       action: Exclude<ResponseAction, 'pass'>;
       chiTileIds?: [string, string];
     }
-  | { type: 'leave_game' };
+  | { type: 'leave_game' }
+  | { type: 'draw_wall' }
+  | { type: 'activate_skill'; skillId: string }
+  | { type: 'skill_pick'; tileId?: string; splitRanks?: [number, number]; confirm?: boolean }
+  | { type: 'skill_vote'; agree: boolean };
 
 /** ── 服务端 → 客户端 ── */
 
@@ -27,6 +31,7 @@ export interface SeatInfo {
   name: string;
   connected: boolean;
   ready: boolean;
+  characterId: string;
 }
 
 export interface RoomStatePayload {

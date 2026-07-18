@@ -10,6 +10,11 @@ function createTile(suit: Suit, rank: number): Tile {
   return { id: `tile_${++tileIdCounter}`, suit, rank };
 }
 
+/** 技能生成的虚拟牌（掰牌等），与牌墙 ID 区分 */
+export function createSkillTile(suit: Suit, rank: number): Tile {
+  return { id: `skill_${++tileIdCounter}`, suit, rank };
+}
+
 /** 标准 136 张牌（无花牌） */
 export function createDeck(): Tile[] {
   tileIdCounter = 0;

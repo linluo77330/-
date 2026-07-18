@@ -11,6 +11,8 @@ import {
   createDiscardLog,
   createHuLog,
   createMeldLog,
+  createSkillLog,
+  createSkillVoteFailedLog,
   type GameLogEntry,
   resetGameLogSequence,
 } from '../core/gameLog.js';
@@ -35,6 +37,7 @@ interface SeatSlot {
   name: string;
   ws: WebSocket | null;
   ready: boolean;
+  characterId: string;
 }
 
 export class Room {
@@ -61,10 +64,11 @@ export class Room {
       name: '',
       ws: null,
       ready: false,
+      characterId: '',
     }));
   }
 
-  join(ws: WebSocket, name: string): PlayerIndex {
+  join(ws: WebSocket, name: string, characterId = ''): PlayerIndex {
     const existing = this.seats.find((s) => s.ws === ws);
     if (existing) return existing.playerIndex;
 
@@ -77,6 +81,7 @@ export class Room {
     empty.name = name;
     empty.ws = ws;
     empty.ready = false;
+    empty.characterId = characterId;
 
     if (this.hostPlayerIndex === null) {
       this.hostPlayerIndex = empty.playerIndex;
@@ -101,6 +106,7 @@ export class Room {
     seat.name = '';
     seat.ws = null;
     seat.ready = false;
+    seat.characterId = '';
 
     if (wasHost) {
       const nextHost = this.seats.find((s) => s.kind === 'human' && s.ws);
@@ -128,7 +134,7 @@ export class Room {
     try {
       switch (msg.type) {
         case 'join_room':
-          this.handleJoin(ws, msg.roomId, msg.name);
+          this.handleJoin(ws, msg.roomId, msg.name, msg.characterId ?? '');
           break;
         case 'ready':
           if (!seat) throw new Error('请先加入房间');
@@ -163,6 +169,26 @@ export class Room {
           if (!this.inGame) throw new Error('当前不在对局中');
           this.handlePlayerLeave(seat, { keepConnected: true });
           break;
+        case 'draw_wall':
+          if (!seat) throw new Error('请先加入房间');
+          this.handleDrawWall(seat);
+          break;
+        case 'activate_skill':
+          if (!seat) throw new Error('请先加入房间');
+          this.handleActivateSkill(seat, msg.skillId);
+          break;
+        case 'skill_pick':
+          if (!seat) throw new Error('请先加入房间');
+          this.handleSkillPick(seat, {
+            tileId: msg.tileId,
+            splitRanks: msg.splitRanks,
+            confirm: msg.confirm,
+          });
+          break;
+        case 'skill_vote':
+          if (!seat) throw new Error('请先加入房间');
+          this.handleSkillVote(seat, msg.agree);
+          break;
         default:
           sendMessage(ws, { type: 'error', message: '未知消息类型' });
       }
@@ -172,7 +198,7 @@ export class Room {
     }
   }
 
-  private handleJoin(ws: WebSocket, roomId: string, name: string): void {
+  private handleJoin(ws: WebSocket, roomId: string, name: string, characterId: string): void {
     if (roomId !== this.roomId) {
       sendMessage(ws, { type: 'error', message: '房间号不匹配' });
       return;
@@ -182,7 +208,7 @@ export class Room {
       return;
     }
 
-    const playerIndex = this.join(ws, name);
+    const playerIndex = this.join(ws, name, characterId);
     sendMessage(ws, {
       type: 'joined',
       roomId: this.roomId,
@@ -216,6 +242,7 @@ export class Room {
     target.name = `${BOT_NAME_PREFIX}${this.botCounter}`;
     target.ws = null;
     target.ready = true;
+    target.characterId = '';
 
     this.broadcastRoomState();
   }
@@ -232,6 +259,7 @@ export class Room {
     target.kind = 'empty';
     target.name = '';
     target.ready = false;
+    target.characterId = '';
 
     this.broadcastRoomState();
   }
@@ -278,7 +306,13 @@ export class Room {
     this.lastDiscardFrom = null;
     resetGameLogSequence();
     this.attachGameListeners();
-    this.game.start(0);
+    const playerCharacters = this.seats.map((s) => s.characterId) as [
+      string,
+      string,
+      string,
+      string,
+    ];
+    this.game.start(0, playerCharacters);
     this.broadcastRoomState();
     this.broadcastGameState();
     this.scheduleAutoDraw();
@@ -307,6 +341,12 @@ export class Room {
       'wildcard_reveal',
       'turn_change',
       'response_pass',
+      'draw_choice_open',
+      'skill_pick_open',
+      'skill_used',
+      'skill_vote_open',
+      'skill_vote_cast',
+      'skill_vote_failed',
     ];
 
     const onSync = () => {
@@ -352,14 +392,31 @@ export class Room {
         this.gameLog = appendGameLogEntry(this.gameLog, createHuLog(payload, from));
       }),
     );
+
+    this.unsubs.push(
+      this.game.on('skill_used', (payload) => {
+        this.gameLog = appendGameLogEntry(this.gameLog, createSkillLog(payload));
+      }),
+    );
+
+    this.unsubs.push(
+      this.game.on('skill_vote_failed', (payload) => {
+        this.gameLog = appendGameLogEntry(
+          this.gameLog,
+          createSkillVoteFailedLog(payload),
+        );
+      }),
+    );
   }
 
   private scheduleAutoDraw(): void {
     if (this.drawTimer) clearTimeout(this.drawTimer);
     if (this.abortTimer || !this.game || this.game.getPhase() !== 'draw') return;
+    if (this.game.needsDrawChoice() || this.game.isSkillActive()) return;
 
     this.drawTimer = setTimeout(() => {
       if (!this.game || this.game.getPhase() !== 'draw') return;
+      if (this.game.needsDrawChoice() || this.game.isSkillActive()) return;
       try {
         this.game.drawCard();
       } catch {
@@ -375,7 +432,54 @@ export class Room {
     const snap = this.game.getSnapshot();
     const delay = getBotActionDelayMs();
 
-    if (snap.phase === 'discard' && this.isBot(snap.currentPlayer)) {
+    if (this.game.isSkillVoteActive()) {
+      const mode = snap.skillMode;
+      if (mode?.skillId === 'instant_win_vote' && mode.step === 'vote') {
+        const initiator = snap.currentPlayer;
+        const pendingBots = ([0, 1, 2, 3] as PlayerIndex[]).filter(
+          (p) => p !== initiator && this.isBot(p) && mode.votes[p] === null,
+        );
+        if (pendingBots.length > 0) {
+          this.botTimer = setTimeout(() => {
+            if (!this.game?.isSkillVoteActive()) return;
+            const fresh = this.game.getSnapshot();
+            const voteMode = fresh.skillMode;
+            if (
+              !voteMode ||
+              voteMode.skillId !== 'instant_win_vote' ||
+              voteMode.step !== 'vote'
+            ) {
+              return;
+            }
+            for (const bot of pendingBots) {
+              if (voteMode.votes[bot] !== null) continue;
+              try {
+                this.game.submitSkillVote(bot, true);
+              } catch {
+                // ignore
+              }
+            }
+          }, delay);
+        }
+      }
+      return;
+    }
+
+    if (snap.phase === 'draw' && this.isBot(snap.currentPlayer) && !this.game.needsDrawChoice()) {
+      this.botTimer = setTimeout(() => {
+        if (!this.game || this.game.getPhase() !== 'draw') return;
+        if (!this.isBot(this.game.getCurrentPlayer())) return;
+        if (this.game.needsDrawChoice() || this.game.isSkillActive()) return;
+        try {
+          this.game.drawCard();
+        } catch {
+          // ignore
+        }
+      }, delay);
+      return;
+    }
+
+    if (snap.phase === 'discard' && this.isBot(snap.currentPlayer) && !this.game.isSkillActive()) {
       this.botTimer = setTimeout(() => {
         if (!this.game || this.game.getPhase() !== 'discard') return;
         if (!this.isBot(this.game.getCurrentPlayer())) return;
@@ -446,6 +550,49 @@ export class Room {
     this.game.respond(seat.playerIndex, action, chiTiles);
   }
 
+  private handleDrawWall(seat: SeatSlot): void {
+    if (this.abortTimer) throw new Error('对局即将结束，请稍候');
+    if (!this.game) throw new Error('对局未开始');
+    if (this.game.getCurrentPlayer() !== seat.playerIndex) {
+      throw new Error('不是你的回合');
+    }
+    this.game.drawCard();
+  }
+
+  private handleActivateSkill(seat: SeatSlot, skillId: string): void {
+    if (this.abortTimer) throw new Error('对局即将结束，请稍候');
+    if (!this.game) throw new Error('对局未开始');
+    if (this.game.getCurrentPlayer() !== seat.playerIndex) {
+      throw new Error('不是你的回合');
+    }
+    if (!this.game.activateSkill(skillId)) {
+      throw new Error('当前无法发动技能');
+    }
+  }
+
+  private handleSkillPick(
+    seat: SeatSlot,
+    params: { tileId?: string; splitRanks?: [number, number]; confirm?: boolean },
+  ): void {
+    if (this.abortTimer) throw new Error('对局即将结束，请稍候');
+    if (!this.game) throw new Error('对局未开始');
+    if (this.game.getCurrentPlayer() !== seat.playerIndex) {
+      throw new Error('不是你的回合');
+    }
+    if (!this.game.resolveSkillPick(params)) {
+      throw new Error('技能选择无效');
+    }
+  }
+
+  private handleSkillVote(seat: SeatSlot, agree: boolean): void {
+    if (this.abortTimer) throw new Error('对局即将结束，请稍候');
+    if (!this.game) throw new Error('对局未开始');
+    if (!this.game.isSkillVoteActive()) {
+      throw new Error('当前不在投票中');
+    }
+    this.game.submitSkillVote(seat.playerIndex, agree);
+  }
+
   getRoomState(): RoomStatePayload {
     return {
       roomId: this.roomId,
@@ -458,6 +605,7 @@ export class Room {
           name: s.kind === 'empty' ? '' : s.name,
           connected: s.kind === 'human' && s.ws !== null,
           ready: s.kind === 'bot' ? true : s.ready,
+          characterId: s.characterId,
         }),
       ),
     };

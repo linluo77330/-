@@ -1,4 +1,8 @@
 import { useEffect, useRef } from 'react';
+import { LET_ME_DRAW_SKILL_ID } from '@/core/skills/letMeDraw';
+import { SPLIT_TILE_SKILL_ID } from '@/core/skills/splitTile';
+import { CANT_READ_SKILL_ID } from '@/core/skills/cantRead';
+import { INSTANT_WIN_VOTE_SKILL_ID } from '@/core/skills/instantWinVote';
 import type { GameLogEntry } from '@/core/gameLog';
 import { logTileToTile } from '@/core/gameLog';
 import type { PlayerIndex, Tile as TileType } from '@/core/types';
@@ -10,6 +14,7 @@ const KIND_LABELS: Record<GameLogEntry['kind'], string> = {
   pong: '碰',
   kong: '杠',
   hu: '胡',
+  skill: '发动',
 };
 
 interface GameLogPanelProps {
@@ -40,6 +45,97 @@ function GameLogEntryRow({
 }) {
   const actor = playerName(seatNames, entry.player);
   const tile = logTileToTile(entry.tile, entry.id);
+
+  if (entry.kind === 'skill') {
+    if (entry.skillId === LET_ME_DRAW_SKILL_ID) {
+      return (
+        <div className="game-log__entry game-log__entry--skill">
+          <span className="game-log__actor">{actor}</span>
+          <span className="game-log__verb">发动</span>
+          <span className="game-log__skill-name">{entry.skillName ?? '技能'}</span>
+          <span className="game-log__verb">，从河牌获得了</span>
+          <LogTiles tiles={[tile]} />
+        </div>
+      );
+    }
+
+    if (entry.skillId === INSTANT_WIN_VOTE_SKILL_ID) {
+      if (entry.votePassed) {
+        return (
+          <div className="game-log__entry game-log__entry--skill">
+            <span className="game-log__actor">{actor}</span>
+            <span className="game-log__verb">发动</span>
+            <span className="game-log__skill-name">{entry.skillName ?? '技能'}</span>
+            <span className="game-log__verb">，投票通过，自动获胜</span>
+          </div>
+        );
+      }
+      if (entry.rejectedBy !== undefined) {
+        const rejecter = playerName(seatNames, entry.rejectedBy);
+        return (
+          <div className="game-log__entry game-log__entry--skill">
+            <span className="game-log__actor">{actor}</span>
+            <span className="game-log__verb">发动</span>
+            <span className="game-log__skill-name">{entry.skillName ?? '技能'}</span>
+            <span className="game-log__verb">，</span>
+            <span className="game-log__actor">{rejecter}</span>
+            <span className="game-log__verb">拒绝，投票失败</span>
+          </div>
+        );
+      }
+    }
+
+    if (entry.skillId === CANT_READ_SKILL_ID && entry.skillTiles && entry.skillTiles.length > 0) {
+      const discarded = entry.skillTiles.map((t, i) => logTileToTile(t, `${entry.id}-d${i}`));
+      const drawn = (entry.drawnTiles ?? []).map((t, i) => logTileToTile(t, `${entry.id}-w${i}`));
+      return (
+        <div className="game-log__entry game-log__entry--skill">
+          <span className="game-log__actor">{actor}</span>
+          <span className="game-log__verb">发动</span>
+          <span className="game-log__skill-name">{entry.skillName ?? '技能'}</span>
+          <span className="game-log__verb">，丢弃</span>
+          <LogTiles tiles={discarded} />
+          {drawn.length > 0 ? (
+            <>
+              <span className="game-log__verb">，摸了</span>
+              <LogTiles tiles={drawn} />
+            </>
+          ) : (
+            <span className="game-log__verb">，未补摸</span>
+          )}
+          <span className="game-log__verb">，跳过出牌</span>
+        </div>
+      );
+    }
+
+    if (entry.skillId === SPLIT_TILE_SKILL_ID && entry.sourceTile && entry.secondaryTile) {
+      const source = logTileToTile(entry.sourceTile, `${entry.id}-src`);
+      const discarded = logTileToTile(entry.secondaryTile, `${entry.id}-discard`);
+      return (
+        <div className="game-log__entry game-log__entry--skill">
+          <span className="game-log__actor">{actor}</span>
+          <span className="game-log__verb">发动</span>
+          <span className="game-log__skill-name">{entry.skillName ?? '技能'}</span>
+          <span className="game-log__verb">，将</span>
+          <LogTiles tiles={[source]} />
+          <span className="game-log__verb">掰开，获得了</span>
+          <LogTiles tiles={[tile]} />
+          <span className="game-log__verb">，丢弃</span>
+          <LogTiles tiles={[discarded]} />
+        </div>
+      );
+    }
+
+    return (
+      <div className="game-log__entry game-log__entry--skill">
+        <span className="game-log__actor">{actor}</span>
+        <span className="game-log__verb">发动</span>
+        <span className="game-log__skill-name">{entry.skillName ?? '技能'}</span>
+        <span className="game-log__verb">，获得了</span>
+        <LogTiles tiles={[tile]} />
+      </div>
+    );
+  }
 
   if (entry.kind === 'discard') {
     return (
@@ -113,7 +209,7 @@ export function GameLogPanel({ entries, seatNames }: GameLogPanelProps) {
       <div className="game-log__header">对局记录</div>
       <div className="game-log__scroll" ref={scrollRef}>
         {entries.length === 0 ? (
-          <p className="game-log__empty">出牌与吃碰杠会显示在这里</p>
+          <p className="game-log__empty">出牌、吃碰杠与技能会显示在这里</p>
         ) : (
           entries.map((entry) => (
             <GameLogEntryRow key={entry.id} entry={entry} seatNames={seatNames} />

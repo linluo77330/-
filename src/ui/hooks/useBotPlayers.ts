@@ -23,13 +23,50 @@ export function useBotPlayers(game: MahjongGame, snapshot: GameSnapshot) {
       timerRef.current = setTimeout(fn, delay);
     };
 
+    if (game.isSkillVoteActive()) {
+      const mode = snapshot.skillMode;
+      if (mode?.skillId === 'instant_win_vote' && mode.step === 'vote') {
+        schedule(() => {
+          const fresh = game.getSnapshot();
+          const voteMode = fresh.skillMode;
+          if (
+            !voteMode ||
+            voteMode.skillId !== 'instant_win_vote' ||
+            voteMode.step !== 'vote'
+          ) {
+            return;
+          }
+          const initiator = fresh.currentPlayer;
+          for (let p = 0; p < 4; p++) {
+            const bot = p as PlayerIndex;
+            if (bot === HUMAN || bot === initiator) continue;
+            if (voteMode.votes[bot] !== null) continue;
+            try {
+              game.submitSkillVote(bot, true);
+            } catch {
+              // ignore
+            }
+          }
+        });
+      }
+      return;
+    }
+
     if (phase === 'draw') {
+      if (currentPlayer === HUMAN && (game.needsDrawChoice() || game.isSkillActive())) {
+        return;
+      }
       schedule(() => game.drawCard());
       return;
     }
 
     if (phase === 'discard' && currentPlayer !== HUMAN) {
+      if (game.isSkillActive()) return;
       schedule(() => runBotDiscard(game, currentPlayer));
+      return;
+    }
+
+    if (phase === 'discard' && currentPlayer === HUMAN && game.isSkillActive()) {
       return;
     }
 

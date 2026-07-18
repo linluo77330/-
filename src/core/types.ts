@@ -44,9 +44,59 @@ export type GamePhase =
   | 'response'
   | 'game_over';
 
+/** 摸牌阶段：choose=可选技能或牌墙 */
+export type DrawMode = 'choose';
+
+export type SkillMode =
+  | {
+      skillId: 'let_me_draw';
+      step: 'pick_discard';
+    }
+  | {
+      skillId: 'cant_read';
+      step: 'confirm';
+    }
+  | {
+      skillId: 'instant_win_vote';
+      step: 'confirm';
+    }
+  | {
+      skillId: 'instant_win_vote';
+      step: 'vote';
+      votes: [
+        SkillVoteChoice | null,
+        SkillVoteChoice | null,
+        SkillVoteChoice | null,
+        SkillVoteChoice | null,
+      ];
+    }
+  | {
+      skillId: 'split_tile';
+      step: 'pick_source';
+    }
+  | {
+      skillId: 'split_tile';
+      step: 'pick_split';
+      sourceTileId: string;
+      suit: 'tong' | 'tiao';
+      rank: number;
+    }
+  | {
+      skillId: 'split_tile';
+      step: 'pick_keep';
+      sourceTileId: string;
+      suit: 'tong' | 'tiao';
+      rankA: number;
+      rankB: number;
+      tileA: Tile;
+      tileB: Tile;
+    };
+
 export interface LastDiscard {
   tile: Tile;
   from: PlayerIndex;
+  /** 技能弃牌等：不可被吃碰响应 */
+  noResponse?: boolean;
 }
 
 export type ResponseAction = 'chi' | 'pong' | 'kong' | 'hu' | 'pass';
@@ -58,7 +108,15 @@ export interface ResponseOption {
   chiTiles?: [Tile, Tile];
 }
 
-export interface WildcardConfig {
+/** 投票型技能：同意 / 拒绝 */
+export type SkillVoteChoice = 'agree' | 'reject';
+
+export interface SkillVoteStatus {
+  player: PlayerIndex;
+  choice: SkillVoteChoice | 'pending';
+}
+
+export type GameOverReason = 'hu' | 'draw' | 'abort' | 'skill_vote';
   /** 发牌后从牌墙首张翻出的指示牌 */
   indicator: Tile;
   /** 由翻牌决定的赖子牌型 */
@@ -69,6 +127,56 @@ export interface WildcardConfig {
 export interface WinInfo {
   tile: Tile;
   isSelfDraw: boolean;
+}
+
+export interface SkillViewState {
+  characterId: string;
+  skillId: string;
+  skillName: string;
+  skillDescription: string;
+  usesRemaining: number;
+  maxUses: number;
+  /** 是否为限定技（显示剩余次数） */
+  limited: boolean;
+  /** 摸牌阶段可发动（手短者）或出牌阶段可发动（体育生） */
+  canActivate: boolean;
+  /** 技能所属阶段 */
+  activatePhase: 'draw' | 'discard';
+}
+
+export type SkillActivityStep =
+  | 'pick_discard'
+  | 'pick_source'
+  | 'pick_split'
+  | 'pick_keep'
+  | 'pick_keep'
+  | 'confirm'
+  | 'vote';
+
+export interface SkillSplitOption {
+  rankA: number;
+  rankB: number;
+}
+
+/** 技能发动中（所有玩家可见；选牌内容仅发动者可见） */
+export interface SkillActivityView {
+  player: PlayerIndex;
+  characterId: string;
+  characterName: string;
+  skillId: string;
+  skillName: string;
+  step: SkillActivityStep;
+  pickableDiscards?: Tile[];
+  pickableHandTiles?: Tile[];
+  splitOptions?: SkillSplitOption[];
+  sourceTile?: Tile;
+  splitTiles?: [Tile, Tile];
+  /** 确认型技能预览（如丢弃字牌） */
+  previewTiles?: Tile[];
+  drawPreviewCount?: number;
+  votePrompt?: string;
+  voteStatus?: SkillVoteStatus[];
+  canVote?: boolean;
 }
 
 export interface GameSnapshot {
@@ -85,8 +193,12 @@ export interface GameSnapshot {
   winner: PlayerIndex | null;
   /** 胡牌时的进张；流局/中止时为 null */
   winInfo: WinInfo | null;
-  /** 万能牌配置；发牌后翻首张牌确定 */
   wildcard: WildcardConfig | null;
+  playerCharacters: [string, string, string, string];
+  skillUses: [number, number, number, number];
+  drawMode: DrawMode | null;
+  skillMode: SkillMode | null;
+  gameOverReason: GameOverReason | null;
 }
 
 /** 联机：他人手牌仅可见张数 */
@@ -129,4 +241,10 @@ export interface PlayerView {
   winner: PlayerIndex | null;
   winInfo: WinInfo | null;
   wildcard: WildcardConfig | null;
+  playerCharacters: [string, string, string, string];
+  skillUses: [number, number, number, number];
+  skill: SkillViewState | null;
+  /** 有玩家正在发动技能并选择效果时为非 null */
+  skillActivity: SkillActivityView | null;
+  gameOverReason: GameOverReason | null;
 }

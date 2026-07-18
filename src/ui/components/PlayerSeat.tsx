@@ -2,6 +2,7 @@ import type { Meld, PlayerIndex, PlayerStateView, Tile as TileType, WildcardConf
 import type { WinHandDisplay } from '@/core/winDecompose';
 import { useCompactLayout } from '../hooks/useCompactLayout';
 import { resolveHandTiles } from '../utils/handView';
+import { PlayerCharacterAvatar } from './PlayerCharacterAvatar';
 import { Tile, type TileSize } from './Tile';
 import { TileRow } from './TileRow';
 
@@ -46,6 +47,8 @@ interface PlayerSeatProps {
   isHuman: boolean;
   position: SeatPosition;
   name: string;
+  characterId?: string;
+  onCharacterAvatarClick?: () => void;
   wildcard: WildcardConfig | null;
   highlightTileId?: string | null;
   winHandDisplay?: WinHandDisplay | null;
@@ -60,6 +63,8 @@ export function PlayerSeat({
   isHuman,
   position,
   name,
+  characterId = '',
+  onCharacterAvatarClick,
   wildcard,
   highlightTileId,
   winHandDisplay,
@@ -76,12 +81,17 @@ export function PlayerSeat({
   const riverSize: TileSize = compact ? 'sm' : 'xs';
   const useRiverScroll = compact;
   const sideHandColumns = isSide && !compact ? 2 : undefined;
-
   return (
     <div
       className={`player-seat player-seat--${position} ${isActive ? 'player-seat--active' : ''} ${isWinner ? 'player-seat--winner' : ''}`}
     >
       <div className="player-seat__header">
+        {characterId && (
+          <PlayerCharacterAvatar
+            characterId={characterId}
+            onClick={onCharacterAvatarClick}
+          />
+        )}
         <span className="player-seat__name">{name}</span>
         {isWinner && <span className="player-seat__winner">胡</span>}
         {isDealer && <span className="player-seat__dealer">庄</span>}

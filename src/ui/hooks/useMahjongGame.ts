@@ -21,6 +21,12 @@ const SYNC_EVENTS: GameEventName[] = [
   'response_window_close',
   'before_hu',
   'after_hu',
+  'draw_choice_open',
+  'skill_pick_open',
+  'skill_used',
+  'skill_vote_open',
+  'skill_vote_cast',
+  'skill_vote_failed',
 ];
 
 export function useMahjongGame() {
@@ -60,17 +66,63 @@ export function useMahjongGame() {
   }, [game, refresh]);
 
   const start = useCallback(
-    (dealer: PlayerIndex = 0) => {
-      game.start(dealer);
+    (
+      dealer: PlayerIndex = 0,
+      playerCharacters: [string, string, string, string] = ['', '', '', ''],
+    ) => {
+      game.start(dealer, playerCharacters);
       setDrawnTileId(null);
       refresh();
     },
     [game, refresh],
   );
 
-  const draw = useCallback(() => {
+  const drawWall = useCallback(() => {
     game.drawCard();
   }, [game]);
+
+  const activateSkill = useCallback(
+    (skillId: string) => {
+      game.activateSkill(skillId);
+      refresh();
+    },
+    [game, refresh],
+  );
+
+  const skillPick = useCallback(
+    (params: { tileId?: string; splitRanks?: [number, number]; confirm?: boolean }) => {
+      try {
+        game.resolveSkillPick(params);
+        const snap = game.getSnapshot();
+        if (
+          params.tileId &&
+          snap.skillMode === null &&
+          snap.currentPlayer === 0 &&
+          snap.players[0].hand.some((t) => t.id === params.tileId)
+        ) {
+          setDrawnTileId(params.tileId);
+        }
+        refresh();
+      } catch (err) {
+        console.error(err);
+        refresh();
+      }
+    },
+    [game, refresh],
+  );
+
+  const skillVote = useCallback(
+    (params: { agree: boolean }) => {
+      try {
+        game.submitSkillVote(0, params.agree);
+        refresh();
+      } catch (err) {
+        console.error(err);
+        refresh();
+      }
+    },
+    [game, refresh],
+  );
 
   const discard = useCallback(
     (tileId: string) => {
@@ -122,7 +174,10 @@ export function useMahjongGame() {
     snapshot,
     drawnTileId,
     start,
-    draw,
+    drawWall,
+    activateSkill,
+    skillPick,
+    skillVote,
     discard,
     respond,
     respondOption,

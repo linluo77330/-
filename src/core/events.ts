@@ -16,13 +16,31 @@ export interface GameEventMap {
   // ── 生命周期 ──
   game_start: { dealer: PlayerIndex };
   wildcard_reveal: { indicator: Tile; wildcard: WildcardConfig };
-  game_over: { winner: PlayerIndex | null; reason: 'hu' | 'draw' | 'abort' };
+  game_over: { winner: PlayerIndex | null; reason: import('./types.js').GameOverReason };
   phase_change: { from: GamePhase; to: GamePhase };
   turn_change: { player: PlayerIndex; turnNumber: number };
 
   // ── 摸牌 ──
-  before_draw: { player: PlayerIndex; deckRemaining: number };
-  after_draw: { player: PlayerIndex; tile: Tile; deckRemaining: number };
+  before_draw: { player: PlayerIndex; deckRemaining: number; fromSkill?: boolean };
+  after_draw: { player: PlayerIndex; tile: Tile; deckRemaining: number; fromSkill?: boolean };
+  draw_choice_open: { player: PlayerIndex };
+  skill_pick_open: { player: PlayerIndex };
+  skill_used: {
+    player: PlayerIndex;
+    skillId: string;
+    skillName: string;
+    tile: Tile;
+    sourceTile?: Tile;
+    discardedTile?: Tile;
+    discardedTiles?: Tile[];
+    drawnTiles?: Tile[];
+    usesRemaining?: number;
+    votePassed?: boolean;
+  };
+
+  skill_vote_open: { initiator: PlayerIndex };
+  skill_vote_cast: { initiator: PlayerIndex; voter: PlayerIndex; agree: boolean };
+  skill_vote_failed: { initiator: PlayerIndex; rejectedBy: PlayerIndex };
 
   // ── 出牌 ──
   before_discard: { player: PlayerIndex; tile: Tile };

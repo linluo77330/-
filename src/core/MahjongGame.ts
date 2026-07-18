@@ -1,7 +1,9 @@
 import { TypedEventEmitter } from './EventEmitter.js';
-import { createDeck, shuffleDeck, tilesEqual } from './deck.js';
+import { createDeck, createSkillTile, shuffleDeck, tilesEqual } from './deck.js';
 import type { GameEventListener, GameEventMap, GameEventName } from './events.js';
 import type {
+  DrawMode,
+  GameOverReason,
   GamePhase,
   GameSnapshot,
   LastDiscard,
@@ -10,9 +12,44 @@ import type {
   PlayerState,
   ResponseAction,
   ResponseOption,
+  SkillMode,
+  SkillVoteChoice,
   Tile,
   WinInfo,
 } from './types.js';
+import {
+  LET_ME_DRAW_MAX_USES,
+  LET_ME_DRAW_SKILL_ID,
+  LET_ME_DRAW_SKILL_NAME,
+  canPlayerUseLetMeDrawSkill,
+  canUseLetMeDraw,
+  isShouDuanZhe,
+} from './skills/letMeDraw.js';
+import {
+  SPLIT_TILE_MAX_USES,
+  SPLIT_TILE_SKILL_ID,
+  SPLIT_TILE_SKILL_NAME,
+  canUseSplitTile,
+  getSplitPairs,
+  isHeiPiTiYuSheng,
+  isSplittableTile,
+} from './skills/splitTile.js';
+import {
+  CANT_READ_SKILL_ID,
+  CANT_READ_SKILL_NAME,
+  canPlayerUseCantReadSkill,
+  canUseCantRead,
+  getUnreadableTilesInHand,
+  isJueWangDeWenMang,
+} from './skills/cantRead.js';
+import {
+  INSTANT_WIN_VOTE_SKILL_ID,
+  INSTANT_WIN_VOTE_SKILL_NAME,
+  canUseInstantWinVote,
+  getPendingSkillVoters,
+  isDuiKangLuGaluo,
+  isInstantWinVoteActive,
+} from './skills/instantWinVote.js';
 import { canWin } from './winCheck.js';
 import { buildPlayerView } from './playerView.js';
 import { createWildcardConfig } from './wildcard.js';
@@ -64,6 +101,11 @@ export class MahjongGame {
   private winner: PlayerIndex | null = null;
   private winInfo: WinInfo | null = null;
   private wildcard: WildcardConfig | null = null;
+  private playerCharacters: [string, string, string, string] = ['', '', '', ''];
+  private skillUses: [number, number, number, number] = [0, 0, 0, 0];
+  private drawMode: DrawMode | null = null;
+  private skillMode: SkillMode | null = null;
+  private gameOverReason: GameOverReason | null = null;
 
   // ── 事件订阅（代理到内部 emitter）──────────────────────────
 
@@ -109,6 +151,19 @@ export class MahjongGame {
             wildcardType: { ...this.wildcard.wildcardType },
           }
         : null,
+      playerCharacters: [...this.playerCharacters] as GameSnapshot['playerCharacters'],
+      skillUses: [...this.skillUses] as GameSnapshot['skillUses'],
+      drawMode: this.drawMode,
+      skillMode: this.skillMode
+        ? this.skillMode.skillId === 'split_tile' && this.skillMode.step === 'pick_keep'
+          ? {
+              ...this.skillMode,
+              tileA: { ...this.skillMode.tileA },
+              tileB: { ...this.skillMode.tileB },
+            }
+          : { ...this.skillMode }
+        : null,
+      gameOverReason: this.gameOverReason,
     };
   }
 
@@ -128,7 +183,10 @@ export class MahjongGame {
   // ── 开局 ────────────────────────────────────────────────────
 
   /** 初始化并发牌；dealer 默认 0（东风） */
-  start(dealer: PlayerIndex = 0): void {
+  start(
+    dealer: PlayerIndex = 0,
+    playerCharacters: [string, string, string, string] = ['', '', '', ''],
+  ): void {
     if (this.phase !== 'idle' && this.phase !== 'game_over') {
       throw new Error(`Cannot start: current phase is ${this.phase}`);
     }
@@ -145,6 +203,11 @@ export class MahjongGame {
     this.passedPlayers.clear();
     this.players = [emptyPlayer(), emptyPlayer(), emptyPlayer(), emptyPlayer()];
     this.wildcard = null;
+    this.playerCharacters = [...playerCharacters] as [string, string, string, string];
+    this.skillUses = [0, 0, 0, 0];
+    this.drawMode = null;
+    this.skillMode = null;
+    this.gameOverReason = null;
 
     this.setPhase('dealing');
 
@@ -175,14 +238,490 @@ export class MahjongGame {
 
   // ── 摸牌 ────────────────────────────────────────────────────
 
+  /** 是否等待玩家选择摸牌方式（牌墙 / 技能） */
+  needsDrawChoice(): boolean {
+    return this.phase === 'draw' && this.drawMode === 'choose';
+  }
+
+  /** 是否有技能交互进行中 */
+  isSkillActive(): boolean {
+    return this.skillMode !== null;
+  }
+
+  /** 是否有技能投票进行中 */
+  isSkillVoteActive(): boolean {
+    return isInstantWinVoteActive(this.skillMode);
+  }
+
+  /** 是否等待从河牌选牌（手短者） */
+  isSkillPickMode(): boolean {
+    return (
+      this.phase === 'draw' &&
+      this.skillMode?.skillId === LET_ME_DRAW_SKILL_ID &&
+      this.skillMode.step === 'pick_discard'
+    );
+  }
+
   /**
-   * 当前玩家在 draw 阶段摸牌
-   * 自摸胡判定在此触发（占位）
+   * 当前玩家在 draw 阶段摸牌（从牌墙）
    */
   drawCard(): Tile | null {
     this.assertPhase('draw');
     this.assertCurrentActor();
 
+    if (this.skillMode !== null) {
+      throw new Error('请先完成技能选择');
+    }
+
+    if (this.drawMode === 'choose') {
+      this.drawMode = null;
+    }
+
+    return this.executeWallDraw();
+  }
+
+  /** 发动技能（按 skillId 路由） */
+  activateSkill(skillId: string): boolean {
+    if (skillId === LET_ME_DRAW_SKILL_ID) return this.activateLetMeDrawSkill();
+    if (skillId === CANT_READ_SKILL_ID) return this.activateCantReadSkill();
+    if (skillId === INSTANT_WIN_VOTE_SKILL_ID) return this.activateInstantWinVoteSkill();
+    if (skillId === SPLIT_TILE_SKILL_ID) return this.activateSplitTileSkill();
+    return false;
+  }
+
+  /** 发动「让让我吧」：进入从河牌选牌 */
+  activateLetMeDrawSkill(): boolean {
+    this.assertPhase('draw');
+    const player = this.currentPlayer;
+    const snap = this.getSnapshot();
+
+    if (!canUseLetMeDraw(snap, player)) {
+      return false;
+    }
+
+    this.skillMode = { skillId: LET_ME_DRAW_SKILL_ID, step: 'pick_discard' };
+    this.events.emit('skill_pick_open', { player });
+    return true;
+  }
+
+  /** 发动「我看不懂啊」：进入确认丢弃带字牌 */
+  activateCantReadSkill(): boolean {
+    const player = this.currentPlayer;
+    const snap = this.getSnapshot();
+
+    if (!canUseCantRead(snap, player)) {
+      return false;
+    }
+
+    this.skillMode = { skillId: CANT_READ_SKILL_ID, step: 'confirm' };
+    this.events.emit('skill_pick_open', { player });
+    return true;
+  }
+
+  /** 发动「一秒四破」：进入确认发起投票 */
+  activateInstantWinVoteSkill(): boolean {
+    const player = this.currentPlayer;
+    const snap = this.getSnapshot();
+
+    if (!canUseInstantWinVote(snap, player)) {
+      return false;
+    }
+
+    this.skillMode = { skillId: INSTANT_WIN_VOTE_SKILL_ID, step: 'confirm' };
+    this.events.emit('skill_pick_open', { player });
+    return true;
+  }
+
+  /** 发动「大力出奇迹」：进入选手牌 */
+  activateSplitTileSkill(): boolean {
+    this.assertPhase('discard');
+    const player = this.currentPlayer;
+    const snap = this.getSnapshot();
+
+    if (!canUseSplitTile(snap, player)) {
+      return false;
+    }
+
+    this.skillMode = { skillId: SPLIT_TILE_SKILL_ID, step: 'pick_source' };
+    this.events.emit('skill_pick_open', { player });
+    return true;
+  }
+
+  /** 技能交互：选牌 / 选拆分 / 选保留 / 确认 */
+  resolveSkillPick(params: {
+    tileId?: string;
+    splitRanks?: [number, number];
+    confirm?: boolean;
+  }): boolean {
+    if (!this.skillMode) {
+      throw new Error('当前未在技能选择中');
+    }
+
+    if (this.skillMode.skillId === LET_ME_DRAW_SKILL_ID) {
+      if (!params.tileId) throw new Error('请选择河牌');
+      return this.drawFromOwnDiscard(params.tileId) !== null;
+    }
+
+    if (this.skillMode.skillId === CANT_READ_SKILL_ID) {
+      if (!params.confirm) throw new Error('请确认发动技能');
+      return this.executeCantReadSkill();
+    }
+
+    if (this.skillMode.skillId === INSTANT_WIN_VOTE_SKILL_ID) {
+      if (this.skillMode.step !== 'confirm') {
+        throw new Error('当前未在确认投票');
+      }
+      if (!params.confirm) throw new Error('请确认发起投票');
+      return this.startInstantWinVote();
+    }
+
+    if (this.skillMode.skillId === SPLIT_TILE_SKILL_ID) {
+      return this.resolveSplitTilePick(params);
+    }
+
+    return false;
+  }
+
+  /** 投票型技能：其余玩家表决 */
+  submitSkillVote(voter: PlayerIndex, agree: boolean): boolean {
+    const mode = this.skillMode;
+    if (!mode || mode.skillId !== INSTANT_WIN_VOTE_SKILL_ID || mode.step !== 'vote') {
+      throw new Error('当前不在投票中');
+    }
+
+    const initiator = this.currentPlayer;
+    if (voter === initiator) {
+      throw new Error('发起者不能投票');
+    }
+    if (mode.votes[voter] !== null) {
+      throw new Error('你已经投过票了');
+    }
+
+    const choice: SkillVoteChoice = agree ? 'agree' : 'reject';
+    const votes = [...mode.votes] as typeof mode.votes;
+    votes[voter] = choice;
+    this.skillMode = { ...mode, votes };
+
+    this.events.emit('skill_vote_cast', { initiator, voter, agree });
+
+    if (!agree) {
+      return this.resolveInstantWinVoteFailed(initiator, voter);
+    }
+
+    const pending = getPendingSkillVoters(initiator, votes);
+    if (pending.length === 0) {
+      return this.resolveInstantWinVotePassed(initiator);
+    }
+
+    return true;
+  }
+
+  private startInstantWinVote(): boolean {
+    const initiator = this.currentPlayer;
+    if (!isDuiKangLuGaluo(this.playerCharacters[initiator])) {
+      throw new Error('该角色无法使用此技能');
+    }
+
+    this.skillMode = {
+      skillId: INSTANT_WIN_VOTE_SKILL_ID,
+      step: 'vote',
+      votes: [null, null, null, null],
+    };
+    this.events.emit('skill_vote_open', { initiator });
+    return true;
+  }
+
+  private resolveInstantWinVotePassed(initiator: PlayerIndex): boolean {
+    this.skillMode = null;
+    const tile = this.players[initiator].hand[0] ?? {
+      id: 'skill-vote-win',
+      suit: 'wan' as const,
+      rank: 1,
+    };
+
+    this.events.emit('skill_used', {
+      player: initiator,
+      skillId: INSTANT_WIN_VOTE_SKILL_ID,
+      skillName: INSTANT_WIN_VOTE_SKILL_NAME,
+      tile: { ...tile },
+      votePassed: true,
+    });
+
+    this.endGame(initiator, 'skill_vote');
+    return true;
+  }
+
+  private resolveInstantWinVoteFailed(initiator: PlayerIndex, rejectedBy: PlayerIndex): boolean {
+    this.skillMode = null;
+    this.events.emit('skill_vote_failed', { initiator, rejectedBy });
+
+    if (this.phase === 'draw' && isDuiKangLuGaluo(this.playerCharacters[initiator])) {
+      this.drawMode = 'choose';
+    }
+
+    return true;
+  }
+
+  /** 从自己的河牌摸一张（技能） */
+  drawFromOwnDiscard(tileId: string): Tile | null {
+    this.assertPhase('draw');
+    this.assertCurrentActor();
+
+    if (this.skillMode?.skillId !== LET_ME_DRAW_SKILL_ID || this.skillMode.step !== 'pick_discard') {
+      throw new Error('当前未在选择河牌');
+    }
+
+    const player = this.currentPlayer;
+    if (!isShouDuanZhe(this.playerCharacters[player])) {
+      throw new Error('该角色无法使用此技能');
+    }
+    if (this.skillUses[player] >= LET_ME_DRAW_MAX_USES) {
+      throw new Error('技能次数已用尽');
+    }
+
+    const discards = this.players[player].discards;
+    const idx = discards.findIndex((t) => t.id === tileId);
+    if (idx === -1) {
+      throw new Error('只能选择自己打出的河牌');
+    }
+
+    const deckRemaining = this.deck.length;
+    if (!this.events.emit('before_draw', { player, deckRemaining, fromSkill: true })) {
+      return null;
+    }
+
+    const tile = discards.splice(idx, 1)[0];
+    this.players[player].hand.push(tile);
+    this.skillUses[player] += 1;
+    this.skillMode = null;
+
+    this.events.emit('after_draw', {
+      player,
+      tile,
+      deckRemaining,
+      fromSkill: true,
+    });
+    this.events.emit('skill_used', {
+      player,
+      skillId: LET_ME_DRAW_SKILL_ID,
+      skillName: LET_ME_DRAW_SKILL_NAME,
+      tile,
+      usesRemaining: LET_ME_DRAW_MAX_USES - this.skillUses[player],
+    });
+
+    if (this.tryHu(player, tile, true)) {
+      return tile;
+    }
+
+    this.setPhase('discard');
+    return tile;
+  }
+
+  /** 执行「我看不懂啊」：弃全部带字牌、等量补摸、跳过出牌 */
+  private executeCantReadSkill(): boolean {
+    this.assertCurrentActor();
+
+    const player = this.currentPlayer;
+    const snap = this.getSnapshot();
+    if (!canUseCantRead(snap, player) && this.skillMode?.skillId !== CANT_READ_SKILL_ID) {
+      throw new Error('当前无法发动该技能');
+    }
+
+    if (!isJueWangDeWenMang(this.playerCharacters[player])) {
+      throw new Error('该角色无法使用此技能');
+    }
+
+    const mode = this.skillMode;
+    if (!mode || mode.skillId !== CANT_READ_SKILL_ID || mode.step !== 'confirm') {
+      throw new Error('当前未在确认技能');
+    }
+
+    const hand = this.players[player].hand;
+    const unreadableTiles = getUnreadableTilesInHand(hand);
+    if (unreadableTiles.length === 0) {
+      throw new Error('手牌中没有带字的牌');
+    }
+
+    const discardedTiles: Tile[] = [];
+    for (const tile of unreadableTiles) {
+      const idx = hand.findIndex((t) => t.id === tile.id);
+      if (idx === -1) continue;
+      const removed = hand.splice(idx, 1)[0];
+      this.players[player].discards.push({ ...removed });
+      discardedTiles.push({ ...removed });
+    }
+
+    const drawCount = discardedTiles.length;
+    const drawnTiles: Tile[] = [];
+
+    this.drawMode = null;
+    this.skillMode = null;
+
+    for (let i = 0; i < drawCount; i++) {
+      if (this.deck.length === 0) {
+        this.endGame(null, 'draw');
+        break;
+      }
+
+      const deckRemaining = this.deck.length;
+      if (!this.events.emit('before_draw', { player, deckRemaining, fromSkill: true })) {
+        break;
+      }
+
+      const tile = this.deck.pop()!;
+      hand.push(tile);
+      drawnTiles.push({ ...tile });
+
+      this.events.emit('after_draw', {
+        player,
+        tile,
+        deckRemaining: this.deck.length,
+        fromSkill: true,
+      });
+
+      if (this.tryHu(player, tile, true)) {
+        break;
+      }
+    }
+
+    this.events.emit('skill_used', {
+      player,
+      skillId: CANT_READ_SKILL_ID,
+      skillName: CANT_READ_SKILL_NAME,
+      tile: discardedTiles[0],
+      discardedTiles,
+      drawnTiles,
+    });
+
+    if (this.phase === 'game_over') {
+      return true;
+    }
+
+    this.turnNumber += 1;
+    this.advanceToNextDraw(player);
+    return true;
+  }
+
+  private resolveSplitTilePick(params: {
+    tileId?: string;
+    splitRanks?: [number, number];
+  }): boolean {
+    this.assertPhase('discard');
+    this.assertCurrentActor();
+
+    const player = this.currentPlayer;
+    if (!isHeiPiTiYuSheng(this.playerCharacters[player])) {
+      throw new Error('该角色无法使用此技能');
+    }
+
+    const mode = this.skillMode;
+    if (!mode || mode.skillId !== SPLIT_TILE_SKILL_ID) {
+      throw new Error('当前未在掰牌技能中');
+    }
+
+    if (mode.step === 'pick_source') {
+      if (!params.tileId) throw new Error('请选择要掰开的牌');
+      const hand = this.players[player].hand;
+      const sourceTile = hand.find((t) => t.id === params.tileId);
+      if (!sourceTile || !isSplittableTile(sourceTile)) {
+        throw new Error('只能选择筒牌或条牌且点数至少为 2');
+      }
+
+      const pairs = getSplitPairs(sourceTile.rank);
+      if (pairs.length === 0) {
+        throw new Error('该牌无法掰开');
+      }
+
+      if (pairs.length === 1) {
+        const { rankA, rankB } = pairs[0];
+        this.skillMode = {
+          skillId: SPLIT_TILE_SKILL_ID,
+          step: 'pick_keep',
+          sourceTileId: sourceTile.id,
+          suit: sourceTile.suit as 'tong' | 'tiao',
+          rankA,
+          rankB,
+          tileA: createSkillTile(sourceTile.suit, rankA),
+          tileB: createSkillTile(sourceTile.suit, rankB),
+        };
+        return true;
+      }
+
+      this.skillMode = {
+        skillId: SPLIT_TILE_SKILL_ID,
+        step: 'pick_split',
+        sourceTileId: sourceTile.id,
+        suit: sourceTile.suit as 'tong' | 'tiao',
+        rank: sourceTile.rank,
+      };
+      return true;
+    }
+
+    if (mode.step === 'pick_split') {
+      if (!params.splitRanks) throw new Error('请选择拆分方式');
+      const [rankA, rankB] = params.splitRanks;
+      const valid = getSplitPairs(mode.rank).some(
+        (p) =>
+          (p.rankA === rankA && p.rankB === rankB) || (p.rankA === rankB && p.rankB === rankA),
+      );
+      if (!valid) throw new Error('无效的拆分方式');
+
+      this.skillMode = {
+        skillId: SPLIT_TILE_SKILL_ID,
+        step: 'pick_keep',
+        sourceTileId: mode.sourceTileId,
+        suit: mode.suit,
+        rankA,
+        rankB,
+        tileA: createSkillTile(mode.suit, rankA),
+        tileB: createSkillTile(mode.suit, rankB),
+      };
+      return true;
+    }
+
+    if (mode.step === 'pick_keep') {
+      if (!params.tileId) throw new Error('请选择要保留的牌');
+      const kept =
+        params.tileId === mode.tileA.id
+          ? mode.tileA
+          : params.tileId === mode.tileB.id
+            ? mode.tileB
+            : null;
+      if (!kept) throw new Error('请选择拆分后的其中一张牌');
+
+      const discarded = kept.id === mode.tileA.id ? mode.tileB : mode.tileA;
+      const hand = this.players[player].hand;
+      const sourceIdx = hand.findIndex((t) => t.id === mode.sourceTileId);
+      if (sourceIdx === -1) throw new Error('原牌不在手牌中');
+
+      const sourceTile = hand.splice(sourceIdx, 1)[0];
+      hand.push({ ...kept });
+      this.players[player].discards.push({ ...discarded });
+
+      this.skillUses[player] += 1;
+      this.skillMode = null;
+
+      this.events.emit('skill_used', {
+        player,
+        skillId: SPLIT_TILE_SKILL_ID,
+        skillName: SPLIT_TILE_SKILL_NAME,
+        tile: { ...kept },
+        sourceTile: { ...sourceTile },
+        discardedTile: { ...discarded },
+        usesRemaining: SPLIT_TILE_MAX_USES - this.skillUses[player],
+      });
+
+      if (this.tryHu(player, kept, true)) {
+        return true;
+      }
+
+      return true;
+    }
+
+    return false;
+  }
+
+  private executeWallDraw(): Tile | null {
     if (this.deck.length === 0) {
       this.endGame(null, 'draw');
       return null;
@@ -191,7 +730,7 @@ export class MahjongGame {
     const player = this.currentPlayer;
     const deckRemaining = this.deck.length;
 
-    if (!this.events.emit('before_draw', { player, deckRemaining })) {
+    if (!this.events.emit('before_draw', { player, deckRemaining, fromSkill: false })) {
       return null;
     }
 
@@ -202,9 +741,9 @@ export class MahjongGame {
       player,
       tile,
       deckRemaining: this.deck.length,
+      fromSkill: false,
     });
 
-    // 自摸胡（占位）
     if (this.tryHu(player, tile, true)) {
       return tile;
     }
@@ -213,10 +752,30 @@ export class MahjongGame {
     return tile;
   }
 
+  private enterDrawPhase(): void {
+    this.setPhase('draw');
+    const player = this.currentPlayer;
+
+    if (
+      canPlayerUseLetMeDrawSkill(this.getSnapshot(), player) ||
+      canPlayerUseCantReadSkill(this.getSnapshot(), player) ||
+      isDuiKangLuGaluo(this.playerCharacters[player])
+    ) {
+      this.drawMode = 'choose';
+      this.events.emit('draw_choice_open', { player });
+    } else {
+      this.drawMode = null;
+    }
+  }
+
   // ── 出牌 ────────────────────────────────────────────────────
 
   discardCard(tileId: string): Tile | null {
     this.assertPhase('discard');
+
+    if (this.skillMode !== null) {
+      throw new Error('请先完成技能选择');
+    }
 
     const player = this.currentPlayer;
     const hand = this.players[player].hand;
@@ -345,6 +904,11 @@ export class MahjongGame {
   private openResponseWindow(): void {
     if (!this.lastDiscard) return;
 
+    if (this.lastDiscard.noResponse) {
+      this.advanceToNextDraw(this.lastDiscard.from);
+      return;
+    }
+
     this.allResponseOptions = this.computeResponses(this.lastDiscard);
     this.passedPlayers.clear();
     this.refreshActiveResponses(false);
@@ -424,11 +988,12 @@ export class MahjongGame {
       player: this.currentPlayer,
       turnNumber: this.turnNumber,
     });
-    this.setPhase('draw');
+    this.enterDrawPhase();
   }
 
-  private endGame(winner: PlayerIndex | null, reason: 'hu' | 'draw' | 'abort'): void {
+  private endGame(winner: PlayerIndex | null, reason: GameOverReason): void {
     this.winner = winner;
+    this.gameOverReason = reason;
     if (reason !== 'hu') {
       this.winInfo = null;
     }

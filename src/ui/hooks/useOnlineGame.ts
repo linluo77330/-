@@ -81,7 +81,7 @@ export function useOnlineGame() {
   }, []);
 
   const connect = useCallback(
-    (roomId: string, name: string, serverUrl = DEFAULT_WS_URL) => {
+    (roomId: string, name: string, serverUrl = DEFAULT_WS_URL, characterId = '') => {
       if (connecting || connected) return;
 
       setConnecting(true);
@@ -102,7 +102,7 @@ export function useOnlineGame() {
       ws.onopen = () => {
         setConnected(true);
         setConnecting(false);
-        ws.send(JSON.stringify({ type: 'join_room', roomId, name }));
+        ws.send(JSON.stringify({ type: 'join_room', roomId, name, characterId }));
       };
 
       ws.onmessage = (event) => {
@@ -196,6 +196,22 @@ export function useOnlineGame() {
     setDrawnTileId(null);
   }, [send]);
 
+  const drawWall = useCallback(() => send({ type: 'draw_wall' }), [send]);
+  const activateSkill = useCallback(
+    (skillId: string) => send({ type: 'activate_skill', skillId }),
+    [send],
+  );
+  const skillPick = useCallback(
+    (params: { tileId?: string; splitRanks?: [number, number]; confirm?: boolean }) =>
+      send({ type: 'skill_pick', tileId: params.tileId, splitRanks: params.splitRanks, confirm: params.confirm }),
+    [send],
+  );
+
+  const skillVote = useCallback(
+    (params: { agree: boolean }) => send({ type: 'skill_vote', agree: params.agree }),
+    [send],
+  );
+
   const inGame = view !== null && view.phase !== 'idle';
 
   const isHost =
@@ -226,6 +242,10 @@ export function useOnlineGame() {
     discard,
     pass,
     respondOption,
+    drawWall,
+    activateSkill,
+    skillPick,
+    skillVote,
   };
 }
 

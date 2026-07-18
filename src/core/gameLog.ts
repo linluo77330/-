@@ -1,7 +1,7 @@
 import type { GameEventMap } from './events.js';
 import type { Meld, PlayerIndex, Tile } from './types.js';
 
-export type GameLogKind = 'discard' | 'chi' | 'pong' | 'kong' | 'hu';
+export type GameLogKind = 'discard' | 'chi' | 'pong' | 'kong' | 'hu' | 'skill';
 
 export interface GameLogTile {
   suit: Tile['suit'];
@@ -16,6 +16,14 @@ export interface GameLogEntry {
   fromPlayer?: PlayerIndex;
   meldTiles?: GameLogTile[];
   isSelfDraw?: boolean;
+  skillId?: string;
+  skillName?: string;
+  sourceTile?: GameLogTile;
+  secondaryTile?: GameLogTile;
+  skillTiles?: GameLogTile[];
+  drawnTiles?: GameLogTile[];
+  votePassed?: boolean;
+  rejectedBy?: PlayerIndex;
 }
 
 let logSequence = 0;
@@ -75,6 +83,37 @@ export function createHuLog(
     tile: toLogTile(payload.tile),
     isSelfDraw: payload.isSelfDraw,
     fromPlayer: payload.isSelfDraw ? undefined : fromPlayer,
+  };
+}
+
+export function createSkillLog(payload: GameEventMap['skill_used']): GameLogEntry {
+  return {
+    id: nextLogId(),
+    kind: 'skill',
+    player: payload.player,
+    tile: toLogTile(payload.tile),
+    skillId: payload.skillId,
+    skillName: payload.skillName,
+    sourceTile: payload.sourceTile ? toLogTile(payload.sourceTile) : undefined,
+    secondaryTile: payload.discardedTile ? toLogTile(payload.discardedTile) : undefined,
+    skillTiles: payload.discardedTiles?.map(toLogTile),
+    drawnTiles: payload.drawnTiles?.map(toLogTile),
+    votePassed: payload.votePassed,
+  };
+}
+
+export function createSkillVoteFailedLog(
+  payload: GameEventMap['skill_vote_failed'],
+): GameLogEntry {
+  return {
+    id: nextLogId(),
+    kind: 'skill',
+    player: payload.initiator,
+    tile: { suit: 'wan', rank: 1 },
+    skillId: 'instant_win_vote',
+    skillName: '一秒四破',
+    votePassed: false,
+    rejectedBy: payload.rejectedBy,
   };
 }
 

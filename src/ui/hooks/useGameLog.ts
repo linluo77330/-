@@ -5,6 +5,8 @@ import {
   createDiscardLog,
   createHuLog,
   createMeldLog,
+  createSkillLog,
+  createSkillVoteFailedLog,
   type GameLogEntry,
   resetGameLogSequence,
 } from '@/core/gameLog';
@@ -46,6 +48,12 @@ export function useGameLog(game: MahjongGame, active: boolean) {
             ? (lastDiscardFromRef.current as import('@/core/types').PlayerIndex)
             : undefined;
         setEntries((prev) => appendGameLogEntry(prev, createHuLog(payload, from)));
+      }),
+      game.on('skill_used', (payload) => {
+        setEntries((prev) => appendGameLogEntry(prev, createSkillLog(payload)));
+      }),
+      game.on('skill_vote_failed', (payload) => {
+        setEntries((prev) => appendGameLogEntry(prev, createSkillVoteFailedLog(payload)));
       }),
     ];
 

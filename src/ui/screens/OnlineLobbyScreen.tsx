@@ -54,7 +54,7 @@ export function OnlineLobbyScreen({ online, character, onBack }: OnlineLobbyScre
     const trimmedName = name.trim();
     const trimmedRoom = roomId.trim();
     if (!trimmedName || !trimmedRoom) return;
-    connect(trimmedRoom, trimmedName, serverUrl.trim() || DEFAULT_WS_URL);
+    connect(trimmedRoom, trimmedName, serverUrl.trim() || DEFAULT_WS_URL, character.id);
   };
 
   const handleBack = () => {

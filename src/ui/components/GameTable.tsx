@@ -2,8 +2,8 @@ import { buildPlayerView } from '@/core/playerView';
 import type { PlayerIndex, Tile as TileType } from '@/core/types';
 import { getWinHandGroups } from '@/core/winDecompose';
 import { wildcardDescription } from '@/core/wildcard';
-import { useMemo } from 'react';
-import type { Character } from '../data/characters';
+import { useMemo, useState, useEffect } from 'react';
+import { getSkillUsesRemaining, type Character } from '../data/characters';
 import type { OnlineGameApi } from '../hooks/useOnlineGame';
 import type { useMahjongGame } from '../hooks/useMahjongGame';
 import { useGameLog } from '../hooks/useGameLog';
@@ -13,6 +13,11 @@ import type { GameLogEntry } from '@/core/gameLog';
 import { ActionPanel } from './ActionPanel';
 import { GameLogPanel } from './GameLogPanel';
 import { PlayerSeat } from './PlayerSeat';
+import { SkillActivityOverlay } from './SkillActivityOverlay';
+import {
+  CharacterSkillInfoOverlay,
+  type CharacterSkillInfoTarget,
+} from './CharacterSkillInfoOverlay';
 import { Tile } from './Tile';
 
 type GameApi = ReturnType<typeof useMahjongGame>;
@@ -49,7 +54,19 @@ function OfflineGameTable({
   character,
   onExit,
 }: Extract<GameTableProps, { mode: 'offline' }>) {
-  const { snapshot, start, discard, respondOption, pass, drawnTileId, game } = gameApi;
+  const {
+    snapshot,
+    start,
+    discard,
+    respondOption,
+    pass,
+    drawnTileId,
+    game,
+    drawWall,
+    activateSkill,
+    skillPick,
+    skillVote,
+  } = gameApi;
   const humanPlayer: PlayerIndex = 0;
   const view = buildPlayerView(snapshot, humanPlayer);
   const seatNames = [...PLAYER_NAMES];
@@ -57,6 +74,7 @@ function OfflineGameTable({
 
   const handleTileClick = (tile: TileType) => {
     if (view.phase !== 'discard' || view.currentPlayer !== humanPlayer) return;
+    if (view.skillActivity?.player === humanPlayer) return;
     discard(tile.id);
   };
 
@@ -70,7 +88,14 @@ function OfflineGameTable({
       onTileClick={handleTileClick}
       onRespond={respondOption}
       onPass={() => pass(humanPlayer)}
-      onStart={() => start(0)}
+      onStart={() =>
+        start(0, [character.id, '', '', ''] as [string, string, string, string])
+      }
+      character={character}
+      onDrawWall={drawWall}
+      onActivateSkill={activateSkill}
+      onSkillPick={skillPick}
+      onSkillVote={skillVote}
       showStart
       headerCharacter={character}
       onExit={onExit}
@@ -94,6 +119,10 @@ function OnlineGameTable({
     discard,
     respondOption,
     pass,
+    drawWall,
+    activateSkill,
+    skillPick,
+    skillVote,
   } = online;
 
   if (!view || playerIndex === null) {
@@ -105,6 +134,7 @@ function OnlineGameTable({
 
   const handleTileClick = (tile: TileType) => {
     if (view.phase !== 'discard' || view.currentPlayer !== playerIndex) return;
+    if (view.skillActivity?.player === playerIndex) return;
     discard(tile.id);
   };
 
@@ -118,6 +148,11 @@ function OnlineGameTable({
       onTileClick={handleTileClick}
       onRespond={respondOption}
       onPass={pass}
+      character={character}
+      onDrawWall={drawWall}
+      onActivateSkill={activateSkill}
+      onSkillPick={skillPick}
+      onSkillVote={skillVote}
       showStart={false}
       headerCharacter={{
         ...character,
@@ -153,6 +188,11 @@ interface GameTableLayoutProps {
   abortBanner?: { playerName: string; secondsLeft: number } | null;
   onExit: () => void;
   exitLabel: string;
+  character: Character;
+  onDrawWall?: () => void;
+  onActivateSkill?: (skillId: string) => void;
+  onSkillPick?: (params: { tileId?: string; splitRanks?: [number, number]; confirm?: boolean }) => void;
+  onSkillVote?: (params: { agree: boolean }) => void;
 }
 
 function GameTableLayout({
@@ -171,7 +211,25 @@ function GameTableLayout({
   abortBanner,
   onExit,
   exitLabel,
+  character,
+  onDrawWall,
+  onActivateSkill,
+  onSkillPick,
+  onSkillVote,
 }: GameTableLayoutProps) {
+  const [skillInfoTarget, setSkillInfoTarget] = useState<CharacterSkillInfoTarget | null>(null);
+
+  useEffect(() => {
+    if (view.skillActivity) {
+      setSkillInfoTarget(null);
+    }
+  }, [view.skillActivity]);
+
+  const showCharacterSkillInfo = (target: CharacterSkillInfoTarget) => {
+    if (view.skillActivity) return;
+    setSkillInfoTarget(target);
+  };
+
   const seats = ([0, 1, 2, 3] as PlayerIndex[]).map((index) => ({
     index,
     position: SEAT_POSITIONS[relativeSeat(humanPlayer, index)],
@@ -194,7 +252,11 @@ function GameTableLayout({
 
   const centerTurnLabel =
     view.phase === 'game_over' && view.winner !== null
-      ? `胡牌：${seatNames[view.winner] ?? PLAYER_NAMES[view.winner]}`
+      ? view.gameOverReason === 'skill_vote'
+        ? `投票通过：${seatNames[view.winner] ?? PLAYER_NAMES[view.winner]} 获胜`
+        : view.winInfo
+          ? `胡牌：${seatNames[view.winner] ?? PLAYER_NAMES[view.winner]}`
+          : `获胜：${seatNames[view.winner] ?? PLAYER_NAMES[view.winner]}`
       : `当前：${seatNames[view.currentPlayer] ?? PLAYER_NAMES[view.currentPlayer]}`;
 
   return (
@@ -260,6 +322,20 @@ function GameTableLayout({
               isHuman={index === humanPlayer}
               position={position}
               name={seatNames[index] ?? PLAYER_NAMES[index]}
+              characterId={view.playerCharacters[index]}
+              onCharacterAvatarClick={
+                view.playerCharacters[index]
+                  ? () =>
+                      showCharacterSkillInfo({
+                        characterId: view.playerCharacters[index],
+                        playerName: seatNames[index] ?? PLAYER_NAMES[index],
+                        skillUsesRemaining: getSkillUsesRemaining(
+                          view.playerCharacters[index],
+                          view.skillUses[index],
+                        ),
+                      })
+                  : undefined
+              }
               wildcard={view.wildcard}
               highlightTileId={
                 index === humanPlayer
@@ -289,16 +365,38 @@ function GameTableLayout({
               <div className="center-info__turn">{centerTurnLabel}</div>
             </div>
           </div>
+
+          {view.skillActivity && (
+            <SkillActivityOverlay
+              activity={view.skillActivity}
+              viewer={humanPlayer}
+              seatNames={seatNames}
+              onSkillPick={onSkillPick}
+              onSkillVote={onSkillVote}
+            />
+          )}
+
+          {skillInfoTarget && !view.skillActivity && (
+            <CharacterSkillInfoOverlay
+              target={skillInfoTarget}
+              onClose={() => setSkillInfoTarget(null)}
+            />
+          )}
         </div>
       </div>
 
       <ActionPanel
         view={view}
         humanPlayer={humanPlayer}
+        character={character}
         onStart={onStart}
         onRespond={onRespond}
         onPass={onPass}
+        onDrawWall={onDrawWall}
+        onActivateSkill={onActivateSkill}
         showStart={showStart}
+        humanDisplayName={seatNames[humanPlayer] ?? PLAYER_NAMES[humanPlayer]}
+        onShowCharacterSkillInfo={(target) => showCharacterSkillInfo(target)}
       />
 
       <GameLogPanel entries={gameLog} seatNames={seatNames} />

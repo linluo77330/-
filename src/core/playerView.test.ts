@@ -26,6 +26,11 @@ function baseSnapshot(overrides: Partial<GameSnapshot> = {}): GameSnapshot {
     winner: 1,
     winInfo: { tile: t('tong', 4), isSelfDraw: false },
     wildcard: null,
+    playerCharacters: ['', 'shou_duan_zhe', '', ''],
+    skillUses: [0, 0, 0, 0],
+    drawMode: null,
+    skillMode: null,
+    gameOverReason: null,
     ...overrides,
   };
 }
@@ -48,5 +53,28 @@ describe('buildPlayerView winner reveal', () => {
     const view = buildPlayerView(snapshot, 0);
 
     expect(view.players[1].hand.kind).toBe('hidden');
+  });
+
+  it('技能选牌时向所有玩家展示发动信息，选牌列表仅发动者可见', () => {
+    const discard = t('feng', 1);
+    const snapshot = baseSnapshot({
+      phase: 'draw',
+      currentPlayer: 1,
+      skillMode: { skillId: 'let_me_draw', step: 'pick_discard' },
+      players: [
+        { hand: [t('wan', 1)], discards: [], melds: [] },
+        { hand: [t('tong', 1)], discards: [discard], melds: [] },
+        { hand: [t('tiao', 5)], discards: [], melds: [] },
+        { hand: [t('feng', 2)], discards: [], melds: [] },
+      ],
+    });
+
+    const actorView = buildPlayerView(snapshot, 1);
+    const observerView = buildPlayerView(snapshot, 0);
+
+    expect(actorView.skillActivity?.skillName).toContain('让让我吧');
+    expect(actorView.skillActivity?.pickableDiscards).toHaveLength(1);
+    expect(observerView.skillActivity?.player).toBe(1);
+    expect(observerView.skillActivity?.pickableDiscards).toHaveLength(0);
   });
 });

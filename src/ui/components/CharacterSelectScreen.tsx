@@ -53,6 +53,13 @@ export function CharacterSelectScreen({
               <span className="character-select__preview-label">已选：</span>
               <strong>{selected.name}</strong>
               <span className="character-select__preview-note">{selected.tagline}</span>
+              <p className="character-select__preview-desc">{selected.description}</p>
+              {selected.skill && (
+                <div className="character-select__preview-skill">
+                  <strong>{selected.skill.name}</strong>
+                  <p>{selected.skill.description}</p>
+                </div>
+              )}
             </>
           ) : (
             <span className="character-select__preview-empty">请选择一名角色</span>
