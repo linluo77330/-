@@ -1,7 +1,8 @@
 import { buildPlayerView } from '@/core/playerView';
 import type { PlayerIndex, Tile as TileType } from '@/core/types';
+import { getWinHandGroups } from '@/core/winDecompose';
 import { wildcardDescription } from '@/core/wildcard';
-import { getTenpaiTiles } from '@/core/winCheck';
+import { useMemo } from 'react';
 import type { Character } from '../data/characters';
 import type { OnlineGameApi } from '../hooks/useOnlineGame';
 import type { useMahjongGame } from '../hooks/useMahjongGame';
@@ -50,13 +51,6 @@ function OfflineGameTable({
   const view = buildPlayerView(snapshot, humanPlayer);
   const seatNames = [...PLAYER_NAMES];
 
-  const humanState = view.players[humanPlayer];
-  const visibleHand = getVisibleHand(humanState);
-  const waitingTiles =
-    view.phase === 'discard' && view.currentPlayer === humanPlayer && visibleHand
-      ? getTenpaiTiles(visibleHand, humanState.melds, view.wildcard)
-      : [];
-
   const handleTileClick = (tile: TileType) => {
     if (view.phase !== 'discard' || view.currentPlayer !== humanPlayer) return;
     discard(tile.id);
@@ -68,7 +62,6 @@ function OfflineGameTable({
       humanPlayer={humanPlayer}
       seatNames={seatNames}
       drawnTileId={drawnTileId}
-      waitingTiles={waitingTiles}
       onTileClick={handleTileClick}
       onRespond={respondOption}
       onPass={() => pass(humanPlayer)}
@@ -104,13 +97,6 @@ function OnlineGameTable({
   const seatNames =
     roomState?.seats.map((s) => s.name || PLAYER_NAMES[s.playerIndex]) ?? [...PLAYER_NAMES];
 
-  const humanState = view.players[playerIndex];
-  const visibleHand = getVisibleHand(humanState);
-  const waitingTiles =
-    view.phase === 'discard' && view.currentPlayer === playerIndex && visibleHand
-      ? getTenpaiTiles(visibleHand, humanState.melds, view.wildcard)
-      : [];
-
   const handleTileClick = (tile: TileType) => {
     if (view.phase !== 'discard' || view.currentPlayer !== playerIndex) return;
     discard(tile.id);
@@ -122,7 +108,6 @@ function OnlineGameTable({
       humanPlayer={playerIndex}
       seatNames={seatNames}
       drawnTileId={drawnTileId}
-      waitingTiles={waitingTiles}
       onTileClick={handleTileClick}
       onRespond={respondOption}
       onPass={pass}
@@ -140,7 +125,7 @@ function OnlineGameTable({
           : null
       }
       onExit={onExit}
-      exitLabel="退回主菜单"
+      exitLabel="返回房间"
     />
   );
 }
@@ -150,7 +135,6 @@ interface GameTableLayoutProps {
   humanPlayer: PlayerIndex;
   seatNames: string[];
   drawnTileId: string | null;
-  waitingTiles: TileType[];
   onTileClick: (tile: TileType) => void;
   onRespond: GameApi['respondOption'];
   onPass: () => void;
@@ -168,7 +152,6 @@ function GameTableLayout({
   humanPlayer,
   seatNames,
   drawnTileId,
-  waitingTiles,
   onTileClick,
   onRespond,
   onPass,
@@ -184,6 +167,26 @@ function GameTableLayout({
     index,
     position: SEAT_POSITIONS[relativeSeat(humanPlayer, index)],
   }));
+
+  const winnerWinHandDisplay = useMemo(() => {
+    if (view.phase !== 'game_over' || view.winner === null || !view.winInfo) return null;
+    const winnerState = view.players[view.winner];
+    const hand = getVisibleHand(winnerState);
+    if (!hand) return null;
+    return getWinHandGroups(hand, winnerState.melds, view.winInfo.tile, view.wildcard);
+  }, [view]);
+
+  const getSeatWinHandDisplay = (index: PlayerIndex) => {
+    if (view.phase === 'game_over' && view.winner === index && winnerWinHandDisplay) {
+      return winnerWinHandDisplay;
+    }
+    return null;
+  };
+
+  const centerTurnLabel =
+    view.phase === 'game_over' && view.winner !== null
+      ? `胡牌：${seatNames[view.winner] ?? PLAYER_NAMES[view.winner]}`
+      : `当前：${seatNames[view.currentPlayer] ?? PLAYER_NAMES[view.currentPlayer]}`;
 
   return (
     <div className="game-layout">
@@ -225,7 +228,7 @@ function GameTableLayout({
 
       {abortBanner && (
         <div className="game-abort-banner" role="alert">
-          <div className="game-abort-banner__title">有玩家断开连接</div>
+          <div className="game-abort-banner__title">有玩家退出对局</div>
           <p className="game-abort-banner__text">
             <strong>{abortBanner.playerName}</strong> 已离开对局，
             {abortBanner.secondsLeft > 0
@@ -243,12 +246,22 @@ function GameTableLayout({
               playerIndex={index}
               state={view.players[index]}
               isDealer={view.dealer === index}
-              isActive={view.currentPlayer === index}
+              isActive={view.phase !== 'game_over' && view.currentPlayer === index}
+              isWinner={view.phase === 'game_over' && view.winner === index}
               isHuman={index === humanPlayer}
               position={position}
               name={seatNames[index] ?? PLAYER_NAMES[index]}
               wildcard={view.wildcard}
-              highlightTileId={index === humanPlayer ? drawnTileId : null}
+              highlightTileId={
+                index === humanPlayer
+                  ? drawnTileId
+                  : view.phase === 'game_over' &&
+                      view.winner === index &&
+                      view.winInfo?.isSelfDraw
+                    ? view.winInfo.tile.id
+                    : null
+              }
+              winHandDisplay={getSeatWinHandDisplay(index)}
               onTileClick={index === humanPlayer ? onTileClick : undefined}
             />
           ))}
@@ -264,32 +277,7 @@ function GameTableLayout({
                   </div>
                 </div>
               )}
-              <div className="center-info__turn">
-                当前：{seatNames[view.currentPlayer] ?? PLAYER_NAMES[view.currentPlayer]}
-              </div>
-              {view.phase === 'response' && view.responseLevel && (
-                <div className="center-info__response">
-                  等待【
-                  {view.responseLevel === 'chi'
-                    ? '吃'
-                    : view.responseLevel === 'pong'
-                      ? '碰'
-                      : view.responseLevel === 'kong'
-                        ? '杠'
-                        : '胡'}
-                  】
-                </div>
-              )}
-              {view.lastDiscard && view.phase === 'response' && (
-                <div className="center-info__last">
-                  <Tile tile={view.lastDiscard.tile} size="md" />
-                </div>
-              )}
-              {waitingTiles.length > 0 && (
-                <div className="center-info__waiting">
-                  听：{waitingTiles.map((t) => tileLabel(t)).join(' ')}
-                </div>
-              )}
+              <div className="center-info__turn">{centerTurnLabel}</div>
             </div>
           </div>
         </div>

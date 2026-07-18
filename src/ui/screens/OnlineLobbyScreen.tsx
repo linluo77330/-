@@ -32,6 +32,7 @@ export function OnlineLobbyScreen({ online, character, onBack }: OnlineLobbyScre
     addBot,
     removeBot,
     lobbyNotice,
+    gameAbortWarning,
   } = online;
 
   const seats = roomState?.seats ?? [];
@@ -123,6 +124,17 @@ export function OnlineLobbyScreen({ online, character, onBack }: OnlineLobbyScre
         </div>
       ) : (
         <div className="online-lobby__room">
+          {gameAbortWarning && (
+            <div className="game-abort-banner game-abort-banner--lobby" role="alert">
+              <div className="game-abort-banner__title">有玩家退出对局</div>
+              <p className="game-abort-banner__text">
+                <strong>{gameAbortWarning.playerName}</strong> 已离开，
+                {gameAbortWarning.secondsLeft > 0
+                  ? `${gameAbortWarning.secondsLeft} 秒后结束对局并返回房间`
+                  : '正在返回房间…'}
+              </p>
+            </div>
+          )}
           {lobbyNotice && (
             <p className="online-lobby__notice" role="status">
               {lobbyNotice}

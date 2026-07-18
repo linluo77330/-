@@ -19,6 +19,7 @@ export function useOnlineGame() {
   } | null>(null);
   const [lobbyNotice, setLobbyNotice] = useState<string | null>(null);
   const abortEndsAtRef = useRef<number | null>(null);
+  const abortPendingRef = useRef(false);
 
   const send = useCallback((payload: object) => {
     const ws = wsRef.current;
@@ -42,14 +43,17 @@ export function useOnlineGame() {
           setDrawnTileId(null);
           setGameAbortWarning(null);
           abortEndsAtRef.current = null;
+          abortPendingRef.current = false;
         }
         break;
       case 'game_state':
+        if (abortPendingRef.current) return;
         setView(msg.state.view);
         setDrawnTileId(msg.state.lastDrawnTileId);
         setRoomState((prev) => (prev ? { ...prev, inGame: true } : prev));
         break;
       case 'game_abort_warning':
+        abortPendingRef.current = true;
         abortEndsAtRef.current = Date.now() + msg.secondsLeft * 1000;
         setGameAbortWarning({
           playerName: msg.playerName,
@@ -57,11 +61,13 @@ export function useOnlineGame() {
         });
         break;
       case 'game_aborted':
+        abortPendingRef.current = false;
         setView(null);
         setDrawnTileId(null);
         setGameAbortWarning(null);
         abortEndsAtRef.current = null;
         setLobbyNotice(msg.reason);
+        setRoomState((prev) => (prev ? { ...prev, inGame: false } : prev));
         break;
       case 'error':
         setError(msg.message);
@@ -82,6 +88,7 @@ export function useOnlineGame() {
       setGameAbortWarning(null);
       setLobbyNotice(null);
       abortEndsAtRef.current = null;
+      abortPendingRef.current = false;
 
       const ws = new WebSocket(serverUrl);
       wsRef.current = ws;
@@ -126,6 +133,7 @@ export function useOnlineGame() {
     setGameAbortWarning(null);
     setLobbyNotice(null);
     abortEndsAtRef.current = null;
+    abortPendingRef.current = false;
   }, []);
 
   useEffect(() => {
@@ -175,6 +183,12 @@ export function useOnlineGame() {
     [send],
   );
 
+  const leaveGame = useCallback(() => {
+    send({ type: 'leave_game' });
+    setView(null);
+    setDrawnTileId(null);
+  }, [send]);
+
   const inGame = view !== null && view.phase !== 'idle';
 
   const isHost =
@@ -196,6 +210,7 @@ export function useOnlineGame() {
     isHost,
     connect,
     disconnect,
+    leaveGame,
     ready,
     startGame,
     addBot,

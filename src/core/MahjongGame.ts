@@ -11,6 +11,7 @@ import type {
   ResponseAction,
   ResponseOption,
   Tile,
+  WinInfo,
 } from './types.js';
 import { canWin } from './winCheck.js';
 import { buildPlayerView } from './playerView.js';
@@ -61,6 +62,7 @@ export class MahjongGame {
   private passedPlayers = new Set<PlayerIndex>();
   private turnNumber = 0;
   private winner: PlayerIndex | null = null;
+  private winInfo: WinInfo | null = null;
   private wildcard: WildcardConfig | null = null;
 
   // ── 事件订阅（代理到内部 emitter）──────────────────────────
@@ -95,6 +97,12 @@ export class MahjongGame {
       responseLevel: this.responseLevel,
       turnNumber: this.turnNumber,
       winner: this.winner,
+      winInfo: this.winInfo
+        ? {
+            tile: { ...this.winInfo.tile },
+            isSelfDraw: this.winInfo.isSelfDraw,
+          }
+        : null,
       wildcard: this.wildcard
         ? {
             indicator: { ...this.wildcard.indicator },
@@ -129,6 +137,7 @@ export class MahjongGame {
     this.currentPlayer = dealer;
     this.turnNumber = 0;
     this.winner = null;
+    this.winInfo = null;
     this.lastDiscard = null;
     this.allResponseOptions = [];
     this.pendingResponses = [];
@@ -420,6 +429,9 @@ export class MahjongGame {
 
   private endGame(winner: PlayerIndex | null, reason: 'hu' | 'draw' | 'abort'): void {
     this.winner = winner;
+    if (reason !== 'hu') {
+      this.winInfo = null;
+    }
     this.setPhase('game_over');
     this.events.emit('game_over', { winner, reason });
   }
@@ -570,6 +582,7 @@ export class MahjongGame {
       return false;
     }
 
+    this.winInfo = { tile: { ...tile }, isSelfDraw };
     this.events.emit('after_hu', { player, tile, isSelfDraw });
     this.events.emit('after_response', {
       player,

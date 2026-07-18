@@ -14,7 +14,8 @@ export type ClientMessage =
       type: 'respond';
       action: Exclude<ResponseAction, 'pass'>;
       chiTileIds?: [string, string];
-    };
+    }
+  | { type: 'leave_game' };
 
 /** ── 服务端 → 客户端 ── */
 

@@ -153,6 +153,128 @@ body {
   font-size: 0.88rem;
 }
 
+.main-menu__footer-actions {
+  display: flex;
+  gap: 0.55rem;
+  margin-top: 1rem;
+}
+
+.main-menu__footer-btn {
+  flex: 1;
+  padding: 0.55rem;
+  font-size: 0.88rem;
+}
+
+/* ── Rules ── */
+
+.rules-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-height: min(62vh, 520px);
+  overflow-y: auto;
+  padding-right: 0.25rem;
+}
+
+.rules-section {
+  padding: 0.85rem 0.95rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.55);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.rules-section__title {
+  margin: 0 0 0.45rem;
+  font-size: 0.98rem;
+  font-weight: 800;
+}
+
+.rules-section__text {
+  margin: 0 0 0.55rem;
+  font-size: 0.86rem;
+  line-height: 1.55;
+}
+
+.rules-section__list {
+  margin: 0;
+  padding-left: 1.15rem;
+  font-size: 0.82rem;
+  line-height: 1.55;
+}
+
+.rules-section__list li + li {
+  margin-top: 0.35rem;
+}
+
+/* ── Win hand grouping ── */
+
+.tile-row--win-grouped {
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 0.45rem 0.55rem;
+  overflow: visible;
+  padding-top: 0.45rem;
+}
+
+.hand-win-group {
+  position: relative;
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 0.12rem;
+  padding: 0.28rem 0.32rem 0.22rem;
+  margin-top: 0.1rem;
+  border-radius: 8px;
+  border: 2px solid rgba(255, 210, 80, 0.85);
+  background: rgba(255, 248, 220, 0.45);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.04);
+  overflow: visible;
+}
+
+.hand-win-group--pair {
+  border-color: rgba(255, 140, 120, 0.9);
+  background: rgba(255, 235, 230, 0.5);
+}
+
+.hand-win-group--triplet {
+  border-color: rgba(120, 180, 255, 0.9);
+  background: rgba(230, 242, 255, 0.5);
+}
+
+.hand-win-group--sequence {
+  border-color: rgba(120, 210, 150, 0.9);
+  background: rgba(232, 250, 238, 0.5);
+}
+
+.hand-win-group--seven_pair {
+  border-color: rgba(190, 140, 255, 0.9);
+  background: rgba(245, 236, 255, 0.5);
+}
+
+.hand-win-group--loose {
+  border-color: rgba(160, 160, 160, 0.75);
+  background: rgba(245, 245, 245, 0.45);
+  border-style: dashed;
+}
+
+.hand-win-group__label {
+  position: absolute;
+  top: 0;
+  left: 0.35rem;
+  transform: translateY(-55%);
+  padding: 0.12rem 0.32rem;
+  font-size: 0.62rem;
+  font-weight: 800;
+  line-height: 1;
+  color: rgba(0, 0, 0, 0.62);
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  border-radius: 4px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
+  z-index: 1;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
 /* ── Settings placeholder ── */
 
 .settings-list {
@@ -311,6 +433,10 @@ body {
   margin: 0;
   color: var(--text);
   font-size: 0.9rem;
+}
+
+.game-abort-banner--lobby {
+  margin: 0 0 0.75rem;
 }
 
 .online-lobby__hint {
@@ -702,6 +828,19 @@ body {
   font-weight: 700;
 }
 
+.player-seat__winner {
+  background: #e85d4a;
+  color: white;
+  padding: 0.06rem 0.28rem;
+  border-radius: 4px;
+  font-size: 0.58rem;
+  font-weight: 700;
+}
+
+.player-seat--winner {
+  box-shadow: 0 0 0 2px rgba(232, 93, 74, 0.55);
+}
+
 .player-seat__count { opacity: 0.7; }
 
 .player-seat__zones {
@@ -741,7 +880,7 @@ body {
 .player-seat__zone--hand .player-seat__zone-body {
   overflow: visible;
   align-items: flex-end;
-  padding-top: 10px;
+  padding-top: 14px;
   padding-bottom: 2px;
 }
 
@@ -953,6 +1092,34 @@ body {
   gap: 5px 7px;
   justify-content: center;
   align-content: start;
+}
+
+.tile-row--hand-2row {
+  display: grid;
+  grid-template-columns: repeat(7, auto);
+  gap: 4px 5px;
+  justify-content: center;
+  width: 100%;
+  overflow: visible;
+}
+
+.tile-row--scroll-x {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+  align-items: flex-end;
+  overflow-x: auto;
+  overflow-y: hidden;
+  max-width: 100%;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x proximity;
+  padding-bottom: 2px;
+}
+
+.tile-row--scroll-x .tile {
+  scroll-snap-align: start;
+  flex-shrink: 0;
 }
 
 .tile-row--grid {
@@ -1360,8 +1527,8 @@ body {
   }
 
   .game-table__felt {
-    grid-template-columns: minmax(64px, 18vw) minmax(96px, 1fr) minmax(64px, 18vw);
-    grid-template-rows: minmax(68px, auto) minmax(150px, auto) minmax(92px, auto);
+    grid-template-columns: minmax(92px, 28vw) minmax(88px, 1fr) minmax(92px, 28vw);
+    grid-template-rows: minmax(68px, auto) minmax(160px, auto) minmax(108px, auto);
     min-height: 0;
     min-width: 320px;
     height: auto;
@@ -1433,19 +1600,18 @@ body {
   }
 
   .player-seat__zone--river {
-    min-height: 28px;
+    min-height: 44px;
   }
 
   .player-seat__zone--hand {
     min-height: 36px;
   }
 
-  .player-seat__zone-label {
-    font-size: 0.48rem;
-  }
-
-  .player-seat__zone-body {
-    min-height: 22px;
+  .player-seat__zone--river .player-seat__zone-body {
+    overflow-x: auto;
+    overflow-y: hidden;
+    align-items: flex-end;
+    justify-content: flex-start;
   }
 
   .player-seat--top .player-seat__zones,
@@ -1454,17 +1620,63 @@ body {
     gap: 0.15rem;
   }
 
+  /* 南北家：改为上下三行，河牌占满宽度 */
   .player-seat--left .player-seat__zones,
   .player-seat--right .player-seat__zones {
+    display: flex;
+    flex-direction: column;
     gap: 0.12rem;
+    width: 100%;
+  }
+
+  .player-seat--left .player-seat__zone,
+  .player-seat--right .player-seat__zone {
+    min-height: 0;
+    height: auto;
+  }
+
+  .player-seat--left .player-seat__zone--melds,
+  .player-seat--right .player-seat__zone--melds {
+    min-height: 28px;
+  }
+
+  .player-seat--left .player-seat__zone--river,
+  .player-seat--right .player-seat__zone--river {
+    min-height: 46px;
+    flex: 0 0 auto;
   }
 
   .player-seat--left .player-seat__zone--hand,
   .player-seat--right .player-seat__zone--hand {
-    min-height: 88px;
+    min-height: 36px;
+    flex: 0 0 auto;
   }
 
-  .player-seat--bottom .player-seat__zone--hand .tile-row {
+  .player-seat--left .player-seat__zone-body,
+  .player-seat--right .player-seat__zone-body {
+    overflow-x: auto;
+    overflow-y: hidden;
+    align-items: flex-end;
+    justify-content: flex-start;
+  }
+
+  .player-seat--left .player-seat__zone--hand .tile-row,
+  .player-seat--right .player-seat__zone--hand .tile-row {
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+  }
+
+  .player-seat--bottom .player-seat__zone--hand {
+    min-height: 0;
+    padding-bottom: 2px;
+  }
+
+  .player-seat--bottom .player-seat__zone--hand .tile-row--hand-2row {
+    overflow: visible;
+    justify-content: center;
+  }
+
+  .player-seat--bottom .player-seat__zone--hand .tile-row:not(.tile-row--hand-2row) {
     justify-content: flex-start;
     overflow-x: auto;
     overflow-y: visible;
@@ -1474,13 +1686,33 @@ body {
     padding-bottom: 6px;
   }
 
-  .player-seat--bottom .player-seat__zone--hand .tile {
+  .player-seat--bottom .player-seat__zone--hand .tile-row:not(.tile-row--hand-2row) .tile {
     scroll-snap-align: center;
   }
 
   .player-seat--bottom .player-seat__zone--hand .tile--clickable {
-    min-width: 36px;
-    min-height: 48px;
+    min-width: 32px;
+    min-height: 44px;
+  }
+
+  .player-seat--top .player-seat__zone--river,
+  .player-seat--bottom .player-seat__zone--river {
+    min-height: 46px;
+  }
+
+  .player-seat--top .player-seat__zone--river .player-seat__zone-body,
+  .player-seat--bottom .player-seat__zone--river .player-seat__zone-body {
+    overflow-x: auto;
+    overflow-y: hidden;
+    justify-content: flex-start;
+  }
+
+  .player-seat__zone-label {
+    font-size: 0.48rem;
+  }
+
+  .player-seat__zone-body {
+    min-height: 22px;
   }
 
   .tile-row--spaced.tile-row--horizontal {
@@ -1533,18 +1765,23 @@ body {
   }
 
   .game-table__felt {
-    grid-template-columns: minmax(56px, 17vw) minmax(88px, 1fr) minmax(56px, 17vw);
+    grid-template-columns: minmax(84px, 27vw) minmax(80px, 1fr) minmax(84px, 27vw);
     min-width: 300px;
   }
 
-  .player-seat--left .player-seat__zone--hand,
-  .player-seat--right .player-seat__zone--hand {
-    min-height: 76px;
+  .player-seat--left .player-seat__zone--river,
+  .player-seat--right .player-seat__zone--river {
+    min-height: 42px;
+  }
+
+  .tile-row--hand-2row {
+    grid-template-columns: repeat(7, auto);
+    gap: 3px 4px;
   }
 
   .player-seat--bottom .player-seat__zone--hand .tile--clickable {
-    min-width: 32px;
-    min-height: 44px;
+    min-width: 28px;
+    min-height: 40px;
   }
 
   .action-panel__main {

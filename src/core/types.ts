@@ -65,6 +65,12 @@ export interface WildcardConfig {
   wildcardType: Pick<Tile, 'suit' | 'rank'>;
 }
 
+/** 胡牌结算信息（game_over 且 reason 为 hu 时有效） */
+export interface WinInfo {
+  tile: Tile;
+  isSelfDraw: boolean;
+}
+
 export interface GameSnapshot {
   phase: GamePhase;
   currentPlayer: PlayerIndex;
@@ -77,6 +83,8 @@ export interface GameSnapshot {
   responseLevel: Exclude<ResponseAction, 'pass'> | null;
   turnNumber: number;
   winner: PlayerIndex | null;
+  /** 胡牌时的进张；流局/中止时为 null */
+  winInfo: WinInfo | null;
   /** 万能牌配置；发牌后翻首张牌确定 */
   wildcard: WildcardConfig | null;
 }
@@ -119,5 +127,6 @@ export interface PlayerView {
   responseLevel: Exclude<ResponseAction, 'pass'> | null;
   turnNumber: number;
   winner: PlayerIndex | null;
+  winInfo: WinInfo | null;
   wildcard: WildcardConfig | null;
 }

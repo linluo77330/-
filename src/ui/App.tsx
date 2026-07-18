@@ -3,6 +3,7 @@ import { CharacterSelectScreen } from './components/CharacterSelectScreen';
 import { GameTable } from './components/GameTable';
 import { MainMenuScreen } from './screens/MainMenuScreen';
 import { OnlineLobbyScreen } from './screens/OnlineLobbyScreen';
+import { RulesScreen } from './screens/RulesScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { useBotPlayers } from './hooks/useBotPlayers';
 import { useMahjongGame } from './hooks/useMahjongGame';
@@ -12,6 +13,7 @@ import './App.css';
 
 type AppScreen =
   | { name: 'main' }
+  | { name: 'rules' }
   | { name: 'settings' }
   | { name: 'online-select' }
   | { name: 'online'; character: Character }
@@ -47,19 +49,30 @@ function OnlineSession({
 }) {
   const online = useOnlineGame();
 
-  const handleExit = () => {
+  const handleDisconnect = () => {
     online.disconnect();
     onExit();
   };
 
-  if (online.inGame && online.view) {
+  const showGameTable = online.view !== null && online.view.phase !== 'idle';
+
+  if (showGameTable) {
     return (
-      <GameTable mode="online" online={online} character={character} onExit={handleExit} />
+      <GameTable
+        mode="online"
+        online={online}
+        character={character}
+        onExit={online.leaveGame}
+      />
     );
   }
 
   return (
-    <OnlineLobbyScreen online={online} character={character} onBack={handleExit} />
+    <OnlineLobbyScreen
+      online={online}
+      character={character}
+      onBack={handleDisconnect}
+    />
   );
 }
 
@@ -72,8 +85,13 @@ export default function App() {
         <MainMenuScreen
           onOffline={() => setScreen({ name: 'offline-select' })}
           onOnline={() => setScreen({ name: 'online-select' })}
+          onRules={() => setScreen({ name: 'rules' })}
           onSettings={() => setScreen({ name: 'settings' })}
         />
+      )}
+
+      {screen.name === 'rules' && (
+        <RulesScreen onBack={() => setScreen({ name: 'main' })} />
       )}
 
       {screen.name === 'settings' && (

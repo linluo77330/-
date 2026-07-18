@@ -11,10 +11,16 @@ function clonePlayerState(
   state: GameSnapshot['players'][0],
   viewer: PlayerIndex,
   playerIndex: PlayerIndex,
+  snapshot: GameSnapshot,
 ): PlayerStateView {
+  const revealWinnerHand =
+    snapshot.phase === 'game_over' &&
+    snapshot.winner === playerIndex &&
+    snapshot.winInfo !== null;
+
   return {
     hand:
-      playerIndex === viewer
+      playerIndex === viewer || revealWinnerHand
         ? { kind: 'visible', tiles: state.hand.map((t) => ({ ...t })) }
         : { kind: 'hidden', count: state.hand.length },
     discards: state.discards.map((t) => ({ ...t })),
@@ -25,7 +31,7 @@ function clonePlayerState(
 /** 联机：按 viewer 隐藏他人手牌与牌墙 */
 export function buildPlayerView(snapshot: GameSnapshot, viewer: PlayerIndex): PlayerView {
   const players = snapshot.players.map((state, i) =>
-    clonePlayerState(state, viewer, i as PlayerIndex),
+    clonePlayerState(state, viewer, i as PlayerIndex, snapshot),
   ) as PlayerView['players'];
 
   return {
@@ -45,6 +51,12 @@ export function buildPlayerView(snapshot: GameSnapshot, viewer: PlayerIndex): Pl
     responseLevel: snapshot.responseLevel,
     turnNumber: snapshot.turnNumber,
     winner: snapshot.winner,
+    winInfo: snapshot.winInfo
+      ? {
+          tile: { ...snapshot.winInfo.tile },
+          isSelfDraw: snapshot.winInfo.isSelfDraw,
+        }
+      : null,
     wildcard: snapshot.wildcard
       ? {
           indicator: { ...snapshot.wildcard.indicator },
@@ -58,6 +70,7 @@ export function buildPlayerView(snapshot: GameSnapshot, viewer: PlayerIndex): Pl
 export function assertPlayerViewSafe(view: PlayerView): void {
   for (let i = 0; i < 4; i++) {
     if (i === view.viewer) continue;
+    if (view.phase === 'game_over' && view.winner === i && view.winInfo) continue;
     const hand = view.players[i as PlayerIndex].hand;
     if (hand.kind === 'visible') {
       throw new Error(`Player ${i} hand must be hidden for viewer ${view.viewer}`);

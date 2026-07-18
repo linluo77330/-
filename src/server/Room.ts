@@ -78,10 +78,14 @@ export class Room {
   disconnect(ws: WebSocket): void {
     const seat = this.seats.find((s) => s.ws === ws);
     if (!seat || seat.kind !== 'human') return;
+    this.handlePlayerLeave(seat);
+  }
 
-    const wasHost = seat.playerIndex === this.hostPlayerIndex;
-    const disconnectedName = seat.name;
+  private handlePlayerLeave(seat: SeatSlot, options?: { keepConnected?: boolean }): void {
+    const playerName = seat.name;
     const wasInGame = this.inGame;
+    const wasHost = seat.playerIndex === this.hostPlayerIndex;
+    const leaverWs = options?.keepConnected ? seat.ws : null;
 
     seat.kind = 'empty';
     seat.name = '';
@@ -94,7 +98,7 @@ export class Room {
     }
 
     if (wasInGame) {
-      this.scheduleGameAbort(disconnectedName);
+      this.scheduleGameAbort(playerName, leaverWs);
     }
 
     this.broadcastRoomState();
@@ -143,6 +147,11 @@ export class Room {
         case 'respond':
           if (!seat) throw new Error('请先加入房间');
           this.handleRespond(seat, msg.action, msg.chiTileIds);
+          break;
+        case 'leave_game':
+          if (!seat) throw new Error('请先加入房间');
+          if (!this.inGame) throw new Error('当前不在对局中');
+          this.handlePlayerLeave(seat, { keepConnected: true });
           break;
         default:
           sendMessage(ws, { type: 'error', message: '未知消息类型' });
@@ -434,19 +443,26 @@ export class Room {
     this.abortTimer = null;
   }
 
-  private scheduleGameAbort(playerName: string): void {
+  private scheduleGameAbort(
+    playerName: string,
+    leaverWs: WebSocket | null = null,
+  ): void {
     if (this.abortTimer) return;
 
     this.clearGameTimers();
-    this.broadcast({
-      type: 'game_abort_warning',
+    const warning = {
+      type: 'game_abort_warning' as const,
       playerName,
       secondsLeft: GAME_ABORT_DELAY_MS / 1000,
-    });
+    };
+    this.broadcast(warning);
+    if (leaverWs) {
+      sendMessage(leaverWs, warning);
+    }
 
     this.abortTimer = setTimeout(() => {
       this.abortTimer = null;
-      this.abortGame(`玩家 ${playerName} 断开连接，对局已结束`);
+      this.abortGame(`玩家 ${playerName} 已退出，对局已结束`);
     }, GAME_ABORT_DELAY_MS);
   }
 
@@ -482,7 +498,7 @@ export class Room {
   }
 
   broadcastGameState(): void {
-    if (!this.game) return;
+    if (!this.game || this.abortTimer) return;
     for (const seat of this.seats) {
       if (!seat.ws) continue;
       const view = this.game.getSnapshotForPlayer(seat.playerIndex);

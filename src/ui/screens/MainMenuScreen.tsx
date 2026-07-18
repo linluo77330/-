@@ -3,10 +3,11 @@ import { ScreenShell } from '../components/ScreenShell';
 interface MainMenuScreenProps {
   onOffline: () => void;
   onOnline: () => void;
+  onRules: () => void;
   onSettings: () => void;
 }
 
-export function MainMenuScreen({ onOffline, onOnline, onSettings }: MainMenuScreenProps) {
+export function MainMenuScreen({ onOffline, onOnline, onRules, onSettings }: MainMenuScreenProps) {
   return (
     <ScreenShell title="技能麻将" subtitle="请选择游戏模式">
       <div className="main-menu__modes">
@@ -27,9 +28,14 @@ export function MainMenuScreen({ onOffline, onOnline, onSettings }: MainMenuScre
         </button>
       </div>
 
-      <button type="button" className="main-menu__settings btn btn--ghost" onClick={onSettings}>
-        ⚙ 设置
-      </button>
+      <div className="main-menu__footer-actions">
+        <button type="button" className="main-menu__footer-btn btn btn--ghost" onClick={onRules}>
+          📖 规则
+        </button>
+        <button type="button" className="main-menu__footer-btn btn btn--ghost" onClick={onSettings}>
+          ⚙ 设置
+        </button>
+      </div>
     </ScreenShell>
   );
 }
