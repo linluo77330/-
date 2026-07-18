@@ -44,6 +44,8 @@ export type ServerMessage =
   | { type: 'joined'; roomId: string; playerIndex: PlayerIndex; isHost: boolean }
   | { type: 'room_state'; state: RoomStatePayload }
   | { type: 'game_state'; state: GameStatePayload }
+  | { type: 'game_abort_warning'; playerName: string; secondsLeft: number }
+  | { type: 'game_aborted'; reason: string }
   | { type: 'error'; message: string };
 
 export function parseClientMessage(raw: string): ClientMessage {

@@ -13,16 +13,17 @@ import './App.css';
 type AppScreen =
   | { name: 'main' }
   | { name: 'settings' }
-  | { name: 'online' }
+  | { name: 'online-select' }
+  | { name: 'online'; character: Character }
   | { name: 'offline-select' }
   | { name: 'offline-game'; character: Character };
 
 function OfflineGameSession({
   character,
-  onChangeCharacter,
+  onExit,
 }: {
   character: Character;
-  onChangeCharacter: () => void;
+  onExit: () => void;
 }) {
   const gameApi = useMahjongGame();
   useBotPlayers(gameApi.game, gameApi.snapshot);
@@ -32,12 +33,18 @@ function OfflineGameSession({
       mode="offline"
       gameApi={gameApi}
       character={character}
-      onExit={onChangeCharacter}
+      onExit={onExit}
     />
   );
 }
 
-function OnlineSession({ onExit }: { onExit: () => void }) {
+function OnlineSession({
+  character,
+  onExit,
+}: {
+  character: Character;
+  onExit: () => void;
+}) {
   const online = useOnlineGame();
 
   const handleExit = () => {
@@ -46,10 +53,14 @@ function OnlineSession({ onExit }: { onExit: () => void }) {
   };
 
   if (online.inGame && online.view) {
-    return <GameTable mode="online" online={online} onExit={handleExit} />;
+    return (
+      <GameTable mode="online" online={online} character={character} onExit={handleExit} />
+    );
   }
 
-  return <OnlineLobbyScreen online={online} onBack={handleExit} />;
+  return (
+    <OnlineLobbyScreen online={online} character={character} onBack={handleExit} />
+  );
 }
 
 export default function App() {
@@ -60,7 +71,7 @@ export default function App() {
       {screen.name === 'main' && (
         <MainMenuScreen
           onOffline={() => setScreen({ name: 'offline-select' })}
-          onOnline={() => setScreen({ name: 'online' })}
+          onOnline={() => setScreen({ name: 'online-select' })}
           onSettings={() => setScreen({ name: 'settings' })}
         />
       )}
@@ -69,8 +80,19 @@ export default function App() {
         <SettingsScreen onBack={() => setScreen({ name: 'main' })} />
       )}
 
+      {screen.name === 'online-select' && (
+        <CharacterSelectScreen
+          mode="online"
+          onConfirm={(character) => setScreen({ name: 'online', character })}
+          onBack={() => setScreen({ name: 'main' })}
+        />
+      )}
+
       {screen.name === 'online' && (
-        <OnlineSession onExit={() => setScreen({ name: 'main' })} />
+        <OnlineSession
+          character={screen.character}
+          onExit={() => setScreen({ name: 'main' })}
+        />
       )}
 
       {screen.name === 'offline-select' && (
@@ -83,7 +105,7 @@ export default function App() {
       {screen.name === 'offline-game' && (
         <OfflineGameSession
           character={screen.character}
-          onChangeCharacter={() => setScreen({ name: 'offline-select' })}
+          onExit={() => setScreen({ name: 'main' })}
         />
       )}
     </div>

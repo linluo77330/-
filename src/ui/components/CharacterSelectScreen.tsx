@@ -4,9 +4,14 @@ import { CHARACTERS, type Character } from '../data/characters';
 interface CharacterSelectScreenProps {
   onConfirm: (character: Character) => void;
   onBack?: () => void;
+  mode?: 'offline' | 'online';
 }
 
-export function CharacterSelectScreen({ onConfirm, onBack }: CharacterSelectScreenProps) {
+export function CharacterSelectScreen({
+  onConfirm,
+  onBack,
+  mode = 'offline',
+}: CharacterSelectScreenProps) {
   const [selected, setSelected] = useState<Character | null>(null);
 
   return (
@@ -19,7 +24,9 @@ export function CharacterSelectScreen({ onConfirm, onBack }: CharacterSelectScre
             </button>
           )}
           <h1>选择角色</h1>
-          <p className="character-select__sub">离线单机 · 选择角色后开始对局</p>
+          <p className="character-select__sub">
+            {mode === 'online' ? '多人联机 · 选择角色后进入房间' : '离线单机 · 选择角色后开始对局'}
+          </p>
         </header>
 
         <div className="character-select__grid">
@@ -58,7 +65,7 @@ export function CharacterSelectScreen({ onConfirm, onBack }: CharacterSelectScre
           disabled={!selected}
           onClick={() => selected && onConfirm(selected)}
         >
-          进入对局
+          {mode === 'online' ? '进入房间' : '进入对局'}
         </button>
       </div>
     </div>

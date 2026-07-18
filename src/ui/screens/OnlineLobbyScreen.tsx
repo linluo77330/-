@@ -1,20 +1,22 @@
 import { useState } from 'react';
 import type { PlayerIndex } from '@/core/types';
+import { DEFAULT_WS_URL } from '../constants';
 import { ScreenShell } from '../components/ScreenShell';
+import type { Character } from '../data/characters';
 import type { OnlineGameApi } from '../hooks/useOnlineGame';
 
-const DEFAULT_WS = 'ws://localhost:3001';
 const SEAT_LABELS = ['东（0 号）', '南（1 号）', '西（2 号）', '北（3 号）'];
 
 interface OnlineLobbyScreenProps {
   online: OnlineGameApi;
+  character: Character;
   onBack: () => void;
 }
 
-export function OnlineLobbyScreen({ online, onBack }: OnlineLobbyScreenProps) {
-  const [serverUrl, setServerUrl] = useState(DEFAULT_WS);
+export function OnlineLobbyScreen({ online, character, onBack }: OnlineLobbyScreenProps) {
+  const [serverUrl, setServerUrl] = useState(DEFAULT_WS_URL);
   const [roomId, setRoomId] = useState('room1');
-  const [name, setName] = useState('');
+  const [name, setName] = useState(character.name);
 
   const {
     connected,
@@ -29,6 +31,7 @@ export function OnlineLobbyScreen({ online, onBack }: OnlineLobbyScreenProps) {
     startGame,
     addBot,
     removeBot,
+    lobbyNotice,
   } = online;
 
   const seats = roomState?.seats ?? [];
@@ -44,7 +47,7 @@ export function OnlineLobbyScreen({ online, onBack }: OnlineLobbyScreenProps) {
     const trimmedName = name.trim();
     const trimmedRoom = roomId.trim();
     if (!trimmedName || !trimmedRoom) return;
-    connect(trimmedRoom, trimmedName, serverUrl.trim() || DEFAULT_WS);
+    connect(trimmedRoom, trimmedName, serverUrl.trim() || DEFAULT_WS_URL);
   };
 
   const handleBack = () => {
@@ -57,8 +60,8 @@ export function OnlineLobbyScreen({ online, onBack }: OnlineLobbyScreenProps) {
       title="多人联机"
       subtitle={
         connected
-          ? `房间 ${roomState?.roomId ?? roomId}${isHost ? ' · 你是房主' : ''}`
-          : '连接服务器并加入房间'
+          ? `${character.name} · 房间 ${roomState?.roomId ?? roomId}${isHost ? ' · 你是房主' : ''}`
+          : `${character.name} · 连接服务器并加入房间`
       }
       footer={
         connected ? (
@@ -80,7 +83,7 @@ export function OnlineLobbyScreen({ online, onBack }: OnlineLobbyScreenProps) {
               type="text"
               value={serverUrl}
               onChange={(e) => setServerUrl(e.target.value)}
-              placeholder={DEFAULT_WS}
+              placeholder={DEFAULT_WS_URL}
             />
           </label>
           <label className="online-lobby__field">
@@ -115,6 +118,11 @@ export function OnlineLobbyScreen({ online, onBack }: OnlineLobbyScreenProps) {
         </div>
       ) : (
         <div className="online-lobby__room">
+          {lobbyNotice && (
+            <p className="online-lobby__notice" role="status">
+              {lobbyNotice}
+            </p>
+          )}
           <div className="online-lobby__seats">
             {SEAT_LABELS.map((label, i) => {
               const seat = seats.find((s) => s.playerIndex === i);

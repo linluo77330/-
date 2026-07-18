@@ -19,6 +19,7 @@ import {
 const AUTO_DRAW_MS = 400;
 const PLAYER_COUNT = 4;
 const BOT_NAME_PREFIX = '机器人';
+const GAME_ABORT_DELAY_MS = 10_000;
 
 interface SeatSlot {
   playerIndex: PlayerIndex;
@@ -37,6 +38,7 @@ export class Room {
   private inGame = false;
   private drawTimer: ReturnType<typeof setTimeout> | null = null;
   private botTimer: ReturnType<typeof setTimeout> | null = null;
+  private abortTimer: ReturnType<typeof setTimeout> | null = null;
   private lastDrawnTileId: Partial<Record<PlayerIndex, string>> = {};
   private unsubs: Array<() => void> = [];
   private botCounter = 0;
@@ -78,6 +80,9 @@ export class Room {
     if (!seat || seat.kind !== 'human') return;
 
     const wasHost = seat.playerIndex === this.hostPlayerIndex;
+    const disconnectedName = seat.name;
+    const wasInGame = this.inGame;
+
     seat.kind = 'empty';
     seat.name = '';
     seat.ws = null;
@@ -86,6 +91,10 @@ export class Room {
     if (wasHost) {
       const nextHost = this.seats.find((s) => s.kind === 'human' && s.ws);
       this.hostPlayerIndex = nextHost?.playerIndex ?? null;
+    }
+
+    if (wasInGame) {
+      this.scheduleGameAbort(disconnectedName);
     }
 
     this.broadcastRoomState();
@@ -306,7 +315,7 @@ export class Room {
 
   private scheduleAutoDraw(): void {
     if (this.drawTimer) clearTimeout(this.drawTimer);
-    if (!this.game || this.game.getPhase() !== 'draw') return;
+    if (this.abortTimer || !this.game || this.game.getPhase() !== 'draw') return;
 
     this.drawTimer = setTimeout(() => {
       if (!this.game || this.game.getPhase() !== 'draw') return;
@@ -320,7 +329,7 @@ export class Room {
 
   private scheduleBotActions(): void {
     if (this.botTimer) clearTimeout(this.botTimer);
-    if (!this.game || !this.inGame) return;
+    if (this.abortTimer || !this.game || !this.inGame) return;
 
     const snap = this.game.getSnapshot();
     const delay = getBotActionDelayMs();
@@ -361,6 +370,7 @@ export class Room {
   }
 
   private handleDiscard(seat: SeatSlot, tileId: string): void {
+    if (this.abortTimer) throw new Error('对局即将结束，请稍候');
     if (!this.game) throw new Error('对局未开始');
     if (this.game.getCurrentPlayer() !== seat.playerIndex) {
       throw new Error('不是你的回合');
@@ -369,6 +379,7 @@ export class Room {
   }
 
   private handlePass(seat: SeatSlot): void {
+    if (this.abortTimer) throw new Error('对局即将结束，请稍候');
     if (!this.game) throw new Error('对局未开始');
     this.game.passResponse(seat.playerIndex);
   }
@@ -378,6 +389,7 @@ export class Room {
     action: Exclude<import('../core/types.js').ResponseAction, 'pass'>,
     chiTileIds?: [string, string],
   ): void {
+    if (this.abortTimer) throw new Error('对局即将结束，请稍候');
     if (!this.game) throw new Error('对局未开始');
 
     let chiTiles: [import('../core/types.js').Tile, import('../core/types.js').Tile] | undefined;
@@ -410,11 +422,63 @@ export class Room {
     };
   }
 
+  private clearGameTimers(): void {
+    if (this.drawTimer) clearTimeout(this.drawTimer);
+    if (this.botTimer) clearTimeout(this.botTimer);
+    this.drawTimer = null;
+    this.botTimer = null;
+  }
+
+  private clearAbortTimer(): void {
+    if (this.abortTimer) clearTimeout(this.abortTimer);
+    this.abortTimer = null;
+  }
+
+  private scheduleGameAbort(playerName: string): void {
+    if (this.abortTimer) return;
+
+    this.clearGameTimers();
+    this.broadcast({
+      type: 'game_abort_warning',
+      playerName,
+      secondsLeft: GAME_ABORT_DELAY_MS / 1000,
+    });
+
+    this.abortTimer = setTimeout(() => {
+      this.abortTimer = null;
+      this.abortGame(`玩家 ${playerName} 断开连接，对局已结束`);
+    }, GAME_ABORT_DELAY_MS);
+  }
+
+  private abortGame(reason: string): void {
+    this.clearGameTimers();
+    this.clearAbortTimer();
+    this.unsubs.forEach((off) => off());
+    this.unsubs = [];
+
+    this.game = null;
+    this.inGame = false;
+    this.lastDrawnTileId = {};
+
+    for (const seat of this.seats) {
+      if (seat.kind === 'human') {
+        seat.ready = false;
+      }
+    }
+
+    this.broadcast({ type: 'game_aborted', reason });
+    this.broadcastRoomState();
+  }
+
+  private broadcast(msg: import('../shared/protocol.js').ServerMessage): void {
+    for (const seat of this.seats) {
+      if (seat.ws) sendMessage(seat.ws, msg);
+    }
+  }
+
   broadcastRoomState(): void {
     const state = this.getRoomState();
-    for (const seat of this.seats) {
-      if (seat.ws) sendMessage(seat.ws, { type: 'room_state', state });
-    }
+    this.broadcast({ type: 'room_state', state });
   }
 
   broadcastGameState(): void {

@@ -34,6 +34,7 @@ export {
   createWildcardConfig,
   isWildcardTile,
   isHaku,
+  resolveTileForWin,
   wildcardDescription,
   HAKU_TYPE,
 } from './wildcard.js';

@@ -1,8 +1,8 @@
-import { useCallback, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import type { PlayerIndex, PlayerView, ResponseOption } from '@/core/types';
 import type { RoomStatePayload, ServerMessage } from '@/shared/protocol';
 
-const DEFAULT_WS = 'ws://localhost:3001';
+import { DEFAULT_WS_URL } from '../constants';
 
 function pushLogEntry(setLog: Dispatch<SetStateAction<string[]>>, msg: string) {
   setLog((prev) => [msg, ...prev].slice(0, 30));
@@ -18,6 +18,12 @@ export function useOnlineGame() {
   const [drawnTileId, setDrawnTileId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [log, setLog] = useState<string[]>([]);
+  const [gameAbortWarning, setGameAbortWarning] = useState<{
+    playerName: string;
+    secondsLeft: number;
+  } | null>(null);
+  const [lobbyNotice, setLobbyNotice] = useState<string | null>(null);
+  const abortEndsAtRef = useRef<number | null>(null);
 
   const send = useCallback((payload: object) => {
     const ws = wsRef.current;
@@ -37,11 +43,33 @@ export function useOnlineGame() {
         break;
       case 'room_state':
         setRoomState(msg.state);
+        if (!msg.state.inGame) {
+          setView(null);
+          setDrawnTileId(null);
+          setGameAbortWarning(null);
+          abortEndsAtRef.current = null;
+        }
         break;
       case 'game_state':
         setView(msg.state.view);
         setDrawnTileId(msg.state.lastDrawnTileId);
         setRoomState((prev) => (prev ? { ...prev, inGame: true } : prev));
+        break;
+      case 'game_abort_warning':
+        abortEndsAtRef.current = Date.now() + msg.secondsLeft * 1000;
+        setGameAbortWarning({
+          playerName: msg.playerName,
+          secondsLeft: msg.secondsLeft,
+        });
+        pushLogEntry(setLog, `${msg.playerName} 已断开，${msg.secondsLeft} 秒后结束对局`);
+        break;
+      case 'game_aborted':
+        setView(null);
+        setDrawnTileId(null);
+        setGameAbortWarning(null);
+        abortEndsAtRef.current = null;
+        setLobbyNotice(msg.reason);
+        pushLogEntry(setLog, msg.reason);
         break;
       case 'error':
         setError(msg.message);
@@ -51,7 +79,7 @@ export function useOnlineGame() {
   }, []);
 
   const connect = useCallback(
-    (roomId: string, name: string, serverUrl = DEFAULT_WS) => {
+    (roomId: string, name: string, serverUrl = DEFAULT_WS_URL) => {
       if (connecting || connected) return;
 
       setConnecting(true);
@@ -61,6 +89,9 @@ export function useOnlineGame() {
       setPlayerIndex(null);
       setDrawnTileId(null);
       setLog([]);
+      setGameAbortWarning(null);
+      setLobbyNotice(null);
+      abortEndsAtRef.current = null;
 
       const ws = new WebSocket(serverUrl);
       wsRef.current = ws;
@@ -104,7 +135,29 @@ export function useOnlineGame() {
     setRoomState(null);
     setView(null);
     setDrawnTileId(null);
+    setGameAbortWarning(null);
+    setLobbyNotice(null);
+    abortEndsAtRef.current = null;
   }, []);
+
+  useEffect(() => {
+    if (!gameAbortWarning || abortEndsAtRef.current === null) return;
+
+    const tick = () => {
+      const endsAt = abortEndsAtRef.current;
+      if (endsAt === null) return;
+      const secondsLeft = Math.max(0, Math.ceil((endsAt - Date.now()) / 1000));
+      setGameAbortWarning((prev) => {
+        if (!prev) return null;
+        if (secondsLeft <= 0) return { ...prev, secondsLeft: 0 };
+        return { ...prev, secondsLeft };
+      });
+    };
+
+    tick();
+    const id = window.setInterval(tick, 250);
+    return () => window.clearInterval(id);
+  }, [gameAbortWarning?.playerName]);
 
   const ready = useCallback(() => send({ type: 'ready' }), [send]);
   const startGame = useCallback(() => send({ type: 'start_game' }), [send]);
@@ -150,6 +203,8 @@ export function useOnlineGame() {
     drawnTileId,
     error,
     log,
+    gameAbortWarning,
+    lobbyNotice,
     inGame,
     isHost,
     connect,

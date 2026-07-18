@@ -23,6 +23,7 @@ type GameTableProps =
   | {
       mode: 'online';
       online: OnlineGameApi;
+      character: Character;
       onExit: () => void;
     };
 
@@ -76,13 +77,27 @@ function OfflineGameTable({
       showStart
       headerCharacter={character}
       onExit={onExit}
-      exitLabel="换角色"
+      exitLabel="退回主菜单"
     />
   );
 }
 
-function OnlineGameTable({ online, onExit }: Extract<GameTableProps, { mode: 'online' }>) {
-  const { view, playerIndex, roomState, drawnTileId, log, discard, respondOption, pass } = online;
+function OnlineGameTable({
+  online,
+  character,
+  onExit,
+}: Extract<GameTableProps, { mode: 'online' }>) {
+  const {
+    view,
+    playerIndex,
+    roomState,
+    drawnTileId,
+    log,
+    gameAbortWarning,
+    discard,
+    respondOption,
+    pass,
+  } = online;
 
   if (!view || playerIndex === null) {
     return null;
@@ -115,12 +130,20 @@ function OnlineGameTable({ online, onExit }: Extract<GameTableProps, { mode: 'on
       onRespond={respondOption}
       onPass={pass}
       showStart={false}
-      headerOnline={{
-        name: seatNames[playerIndex] ?? '你',
-        roomId: roomState?.roomId ?? '',
+      headerCharacter={{
+        ...character,
+        tagline: `房间 ${roomState?.roomId ?? ''} · ${seatNames[playerIndex] ?? '你'}`,
       }}
+      abortBanner={
+        gameAbortWarning
+          ? {
+              playerName: gameAbortWarning.playerName,
+              secondsLeft: gameAbortWarning.secondsLeft,
+            }
+          : null
+      }
       onExit={onExit}
-      exitLabel="离开对局"
+      exitLabel="退回主菜单"
     />
   );
 }
@@ -139,6 +162,7 @@ interface GameTableLayoutProps {
   showStart: boolean;
   headerCharacter?: Character;
   headerOnline?: { name: string; roomId: string };
+  abortBanner?: { playerName: string; secondsLeft: number } | null;
   onExit: () => void;
   exitLabel: string;
 }
@@ -157,6 +181,7 @@ function GameTableLayout({
   showStart,
   headerCharacter,
   headerOnline,
+  abortBanner,
   onExit,
   exitLabel,
 }: GameTableLayoutProps) {
@@ -202,6 +227,18 @@ function GameTableLayout({
           </button>
         </div>
       </header>
+
+      {abortBanner && (
+        <div className="game-abort-banner" role="alert">
+          <div className="game-abort-banner__title">有玩家断开连接</div>
+          <p className="game-abort-banner__text">
+            <strong>{abortBanner.playerName}</strong> 已离开对局，
+            {abortBanner.secondsLeft > 0
+              ? `${abortBanner.secondsLeft} 秒后自动结束并返回大厅`
+              : '正在返回大厅…'}
+          </p>
+        </div>
+      )}
 
       <div className="game-table">
         <div className="game-table__felt">

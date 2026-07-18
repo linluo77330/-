@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Meld, Tile } from './types.js';
+import { createWildcardConfig } from './wildcard.js';
 import { canStandardWin, canWin, isSevenPairs } from './winCheck.js';
 
 let id = 0;
@@ -84,5 +85,44 @@ describe('canWin', () => {
 describe('canStandardWin', () => {
   it('拒绝错误张数', () => {
     expect(canStandardWin([t('wan', 1), t('wan', 1)], 0)).toBe(false);
+  });
+});
+
+describe('canWin with wildcard', () => {
+  it('白板视作指示牌型，不能替代其他牌', () => {
+    const wildcard = createWildcardConfig(t('feng', 1));
+    const hand = [
+      t('wan', 1), t('wan', 2), t('wan', 3),
+      t('wan', 4), t('wan', 5), t('wan', 6),
+      t('wan', 7), t('wan', 8), t('wan', 9),
+      t('feng', 5), t('feng', 5), t('feng', 5),
+      t('dragon', 3),
+    ];
+    expect(canWin(hand, [], t('dragon', 1), wildcard)).toBe(false);
+  });
+
+  it('白板视作指示牌型，可与同型万能牌组成刻子', () => {
+    const wildcard = createWildcardConfig(t('tiao', 1));
+    const hand = [
+      t('wan', 1), t('wan', 2), t('wan', 3),
+      t('wan', 4), t('wan', 5), t('wan', 6),
+      t('wan', 7), t('wan', 8), t('wan', 9),
+      t('feng', 2), t('feng', 2),
+      t('tiao', 1), t('tiao', 1),
+      t('dragon', 3),
+    ];
+    expect(canWin(hand, [], hand[9], wildcard)).toBe(true);
+  });
+
+  it('同型牌作万能牌可替代任意牌', () => {
+    const wildcard = createWildcardConfig(t('tiao', 1));
+    const hand = [
+      t('wan', 1), t('wan', 2), t('wan', 3),
+      t('wan', 4), t('wan', 5), t('wan', 6),
+      t('wan', 7), t('wan', 8), t('wan', 9),
+      t('feng', 5), t('feng', 5), t('feng', 5),
+      t('tiao', 1),
+    ];
+    expect(canWin(hand, [], t('dragon', 1), wildcard)).toBe(true);
   });
 });

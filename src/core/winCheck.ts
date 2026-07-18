@@ -1,5 +1,6 @@
 import type { Meld, Tile, WildcardConfig } from './types.js';
-import { isWildcardTile } from './wildcard.js';
+import { resolveTileForWin } from './wildcard.js';
+import { tilesEqual } from './deck.js';
 
 const NUMBER_SUITS = new Set(['wan', 'tong', 'tiao']);
 
@@ -232,8 +233,11 @@ function splitWildcards(tiles: Tile[], wildcard: WildcardConfig | null | undefin
   const fixed: Tile[] = [];
   let wildCount = 0;
   for (const tile of tiles) {
-    if (isWildcardTile(tile, wildcard)) wildCount += 1;
-    else fixed.push(tile);
+    if (tilesEqual(tile, wildcard.wildcardType)) {
+      wildCount += 1;
+    } else {
+      fixed.push(resolveTileForWin(tile, wildcard));
+    }
   }
   return { fixed, wildCount };
 }
