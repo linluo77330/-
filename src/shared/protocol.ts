@@ -36,9 +36,12 @@ export interface RoomStatePayload {
   seats: SeatInfo[];
 }
 
+import type { GameLogEntry } from '../core/gameLog.js';
+
 export interface GameStatePayload {
   view: import('../core/types.js').PlayerView;
   lastDrawnTileId: string | null;
+  log: GameLogEntry[];
 }
 
 export type ServerMessage =

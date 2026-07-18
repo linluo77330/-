@@ -622,7 +622,7 @@ body {
   margin: 0 auto;
   display: grid;
   grid-template-columns: 1fr;
-  grid-template-rows: auto minmax(580px, 1fr) auto;
+  grid-template-rows: auto minmax(520px, 1fr) auto auto;
   gap: 0.75rem;
   min-height: calc(100vh - 1.5rem);
 }
@@ -1330,6 +1330,86 @@ body {
   flex-wrap: wrap;
 }
 
+/* ── Game log ── */
+
+.game-log {
+  grid-column: 1 / -1;
+  background: var(--panel);
+  border-radius: 12px;
+  padding: 0.5rem 0.75rem 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-height: 72px;
+  max-height: 148px;
+}
+
+.game-log__header {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  opacity: 0.65;
+  flex-shrink: 0;
+}
+
+.game-log__scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-x: auto;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.28rem;
+  padding-right: 0.15rem;
+  -webkit-overflow-scrolling: touch;
+}
+
+.game-log__empty {
+  margin: 0;
+  font-size: 0.78rem;
+  opacity: 0.45;
+  font-style: italic;
+}
+
+.game-log__entry {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 0.28rem;
+  font-size: 0.78rem;
+  line-height: 1.2;
+  padding: 0.18rem 0.1rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+  min-width: min-content;
+}
+
+.game-log__entry:last-child {
+  border-bottom: none;
+}
+
+.game-log__actor {
+  font-weight: 700;
+  color: var(--accent);
+  white-space: nowrap;
+}
+
+.game-log__verb,
+.game-log__from {
+  opacity: 0.72;
+  white-space: nowrap;
+}
+
+.game-log__tiles {
+  display: inline-flex;
+  align-items: flex-end;
+  gap: 1px;
+  flex-shrink: 0;
+}
+
+.game-log__entry--hu .game-log__actor {
+  color: #c45a00;
+}
+
 /* 响应面板：始终占位 48px，避免吃碰时整页跳动 */
 .response-panel {
   min-height: 48px;
@@ -1731,6 +1811,16 @@ body {
     padding: 0.45rem 0.55rem;
     min-height: 92px;
     border-radius: 10px;
+  }
+
+  .game-log {
+    max-height: 120px;
+    padding: 0.4rem 0.55rem;
+    border-radius: 10px;
+  }
+
+  .game-log__entry {
+    font-size: 0.72rem;
   }
 
   .action-panel__status {

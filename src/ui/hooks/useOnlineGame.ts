@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import type { GameLogEntry } from '@/core/gameLog';
 import type { PlayerIndex, PlayerView, ResponseOption } from '@/core/types';
 import type { RoomStatePayload, ServerMessage } from '@/shared/protocol';
 
@@ -12,6 +13,7 @@ export function useOnlineGame() {
   const [roomState, setRoomState] = useState<RoomStatePayload | null>(null);
   const [view, setView] = useState<PlayerView | null>(null);
   const [drawnTileId, setDrawnTileId] = useState<string | null>(null);
+  const [gameLog, setGameLog] = useState<GameLogEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [gameAbortWarning, setGameAbortWarning] = useState<{
     playerName: string;
@@ -41,6 +43,7 @@ export function useOnlineGame() {
         if (!msg.state.inGame) {
           setView(null);
           setDrawnTileId(null);
+          setGameLog([]);
           setGameAbortWarning(null);
           abortEndsAtRef.current = null;
           abortPendingRef.current = false;
@@ -50,6 +53,7 @@ export function useOnlineGame() {
         if (abortPendingRef.current) return;
         setView(msg.state.view);
         setDrawnTileId(msg.state.lastDrawnTileId);
+        setGameLog(msg.state.log ?? []);
         setRoomState((prev) => (prev ? { ...prev, inGame: true } : prev));
         break;
       case 'game_abort_warning':
@@ -64,6 +68,7 @@ export function useOnlineGame() {
         abortPendingRef.current = false;
         setView(null);
         setDrawnTileId(null);
+        setGameLog([]);
         setGameAbortWarning(null);
         abortEndsAtRef.current = null;
         setLobbyNotice(msg.reason);
@@ -85,6 +90,7 @@ export function useOnlineGame() {
       setRoomState(null);
       setPlayerIndex(null);
       setDrawnTileId(null);
+      setGameLog([]);
       setGameAbortWarning(null);
       setLobbyNotice(null);
       abortEndsAtRef.current = null;
@@ -130,6 +136,7 @@ export function useOnlineGame() {
     setRoomState(null);
     setView(null);
     setDrawnTileId(null);
+    setGameLog([]);
     setGameAbortWarning(null);
     setLobbyNotice(null);
     abortEndsAtRef.current = null;
@@ -203,6 +210,7 @@ export function useOnlineGame() {
     roomState,
     view,
     drawnTileId,
+    gameLog,
     error,
     gameAbortWarning,
     lobbyNotice,

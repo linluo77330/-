@@ -6,9 +6,12 @@ import { useMemo } from 'react';
 import type { Character } from '../data/characters';
 import type { OnlineGameApi } from '../hooks/useOnlineGame';
 import type { useMahjongGame } from '../hooks/useMahjongGame';
+import { useGameLog } from '../hooks/useGameLog';
 import { getVisibleHand } from '../utils/handView';
 import { tileLabel, PLAYER_NAMES } from '../utils/tileLabels';
+import type { GameLogEntry } from '@/core/gameLog';
 import { ActionPanel } from './ActionPanel';
+import { GameLogPanel } from './GameLogPanel';
 import { PlayerSeat } from './PlayerSeat';
 import { Tile } from './Tile';
 
@@ -46,10 +49,11 @@ function OfflineGameTable({
   character,
   onExit,
 }: Extract<GameTableProps, { mode: 'offline' }>) {
-  const { snapshot, start, discard, respondOption, pass, drawnTileId } = gameApi;
+  const { snapshot, start, discard, respondOption, pass, drawnTileId, game } = gameApi;
   const humanPlayer: PlayerIndex = 0;
   const view = buildPlayerView(snapshot, humanPlayer);
   const seatNames = [...PLAYER_NAMES];
+  const gameLog = useGameLog(game, view.phase !== 'idle');
 
   const handleTileClick = (tile: TileType) => {
     if (view.phase !== 'discard' || view.currentPlayer !== humanPlayer) return;
@@ -62,6 +66,7 @@ function OfflineGameTable({
       humanPlayer={humanPlayer}
       seatNames={seatNames}
       drawnTileId={drawnTileId}
+      gameLog={gameLog}
       onTileClick={handleTileClick}
       onRespond={respondOption}
       onPass={() => pass(humanPlayer)}
@@ -85,6 +90,7 @@ function OnlineGameTable({
     roomState,
     drawnTileId,
     gameAbortWarning,
+    gameLog,
     discard,
     respondOption,
     pass,
@@ -108,6 +114,7 @@ function OnlineGameTable({
       humanPlayer={playerIndex}
       seatNames={seatNames}
       drawnTileId={drawnTileId}
+      gameLog={gameLog}
       onTileClick={handleTileClick}
       onRespond={respondOption}
       onPass={pass}
@@ -135,6 +142,7 @@ interface GameTableLayoutProps {
   humanPlayer: PlayerIndex;
   seatNames: string[];
   drawnTileId: string | null;
+  gameLog: GameLogEntry[];
   onTileClick: (tile: TileType) => void;
   onRespond: GameApi['respondOption'];
   onPass: () => void;
@@ -152,6 +160,7 @@ function GameTableLayout({
   humanPlayer,
   seatNames,
   drawnTileId,
+  gameLog,
   onTileClick,
   onRespond,
   onPass,
@@ -292,6 +301,7 @@ function GameTableLayout({
         showStart={showStart}
       />
 
+      <GameLogPanel entries={gameLog} seatNames={seatNames} />
     </div>
   );
 }

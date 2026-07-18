@@ -6,6 +6,14 @@ import {
 } from '../core/botAI.js';
 import { MahjongGame } from '../core/MahjongGame.js';
 import type { GameEventName } from '../core/events.js';
+import {
+  appendGameLogEntry,
+  createDiscardLog,
+  createHuLog,
+  createMeldLog,
+  type GameLogEntry,
+  resetGameLogSequence,
+} from '../core/gameLog.js';
 import type { PlayerIndex } from '../core/types.js';
 import {
   parseClientMessage,
@@ -40,6 +48,8 @@ export class Room {
   private botTimer: ReturnType<typeof setTimeout> | null = null;
   private abortTimer: ReturnType<typeof setTimeout> | null = null;
   private lastDrawnTileId: Partial<Record<PlayerIndex, string>> = {};
+  private gameLog: GameLogEntry[] = [];
+  private lastDiscardFrom: PlayerIndex | null = null;
   private unsubs: Array<() => void> = [];
   private botCounter = 0;
 
@@ -264,6 +274,9 @@ export class Room {
     );
     this.game = new MahjongGame();
     this.lastDrawnTileId = {};
+    this.gameLog = [];
+    this.lastDiscardFrom = null;
+    resetGameLogSequence();
     this.attachGameListeners();
     this.game.start(0);
     this.broadcastRoomState();
@@ -318,6 +331,25 @@ export class Room {
     this.unsubs.push(
       this.game.on('after_discard', (payload) => {
         delete this.lastDrawnTileId[payload.player];
+        this.lastDiscardFrom = payload.player;
+        this.gameLog = appendGameLogEntry(this.gameLog, createDiscardLog(payload));
+      }),
+    );
+
+    this.unsubs.push(
+      this.game.on('after_response', (payload) => {
+        if (this.lastDiscardFrom === null) return;
+        this.gameLog = appendGameLogEntry(
+          this.gameLog,
+          createMeldLog(payload, this.lastDiscardFrom),
+        );
+      }),
+    );
+
+    this.unsubs.push(
+      this.game.on('after_hu', (payload) => {
+        const from = payload.isSelfDraw ? undefined : (this.lastDiscardFrom ?? undefined);
+        this.gameLog = appendGameLogEntry(this.gameLog, createHuLog(payload, from));
       }),
     );
   }
@@ -507,6 +539,7 @@ export class Room {
         state: {
           view,
           lastDrawnTileId: this.lastDrawnTileId[seat.playerIndex] ?? null,
+          log: this.gameLog,
         },
       });
     }
