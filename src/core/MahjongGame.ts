@@ -495,6 +495,24 @@ export class MahjongGame {
     this.skillUses[player] += 1;
     this.skillMode = null;
 
+    if (this.tryHu(player, tile, true)) {
+      this.events.emit('after_draw', {
+        player,
+        tile,
+        deckRemaining,
+        fromSkill: true,
+      });
+      this.events.emit('skill_used', {
+        player,
+        skillId: LET_ME_DRAW_SKILL_ID,
+        skillName: LET_ME_DRAW_SKILL_NAME,
+        tile,
+        usesRemaining: LET_ME_DRAW_MAX_USES - this.skillUses[player],
+      });
+      return tile;
+    }
+
+    this.setPhase('discard');
     this.events.emit('after_draw', {
       player,
       tile,
@@ -508,12 +526,6 @@ export class MahjongGame {
       tile,
       usesRemaining: LET_ME_DRAW_MAX_USES - this.skillUses[player],
     });
-
-    if (this.tryHu(player, tile, true)) {
-      return tile;
-    }
-
-    this.setPhase('discard');
     return tile;
   }
 
@@ -737,34 +749,44 @@ export class MahjongGame {
     const tile = this.deck.pop()!;
     this.players[player].hand.push(tile);
 
+    if (this.tryHu(player, tile, true)) {
+      this.events.emit('after_draw', {
+        player,
+        tile,
+        deckRemaining: this.deck.length,
+        fromSkill: false,
+      });
+      return tile;
+    }
+
+    this.setPhase('discard');
     this.events.emit('after_draw', {
       player,
       tile,
       deckRemaining: this.deck.length,
       fromSkill: false,
     });
-
-    if (this.tryHu(player, tile, true)) {
-      return tile;
-    }
-
-    this.setPhase('discard');
     return tile;
   }
 
   private enterDrawPhase(): void {
-    this.setPhase('draw');
     const player = this.currentPlayer;
+    const snapshot = this.getSnapshot();
 
     if (
-      canPlayerUseLetMeDrawSkill(this.getSnapshot(), player) ||
-      canPlayerUseCantReadSkill(this.getSnapshot(), player) ||
+      canPlayerUseLetMeDrawSkill(snapshot, player) ||
+      canPlayerUseCantReadSkill(snapshot, player) ||
       isDuiKangLuGaluo(this.playerCharacters[player])
     ) {
       this.drawMode = 'choose';
-      this.events.emit('draw_choice_open', { player });
     } else {
       this.drawMode = null;
+    }
+
+    this.setPhase('draw');
+
+    if (this.drawMode === 'choose') {
+      this.events.emit('draw_choice_open', { player });
     }
   }
 

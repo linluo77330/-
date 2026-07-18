@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import type { PlayerIndex } from '@/core/types';
-import { DEFAULT_WS_URL } from '../constants';
+import { DEFAULT_WS_URL, LEGACY_REMOTE_WS_URL } from '../constants';
 import { ScreenShell } from '../components/ScreenShell';
 import type { Character } from '../data/characters';
 import type { OnlineGameApi } from '../hooks/useOnlineGame';
@@ -47,6 +47,9 @@ export function OnlineLobbyScreen({ online, character, onBack }: OnlineLobbyScre
   useEffect(() => {
     if (!connected) {
       setRoomId('');
+      setServerUrl((prev) =>
+        prev.includes('106.54.195.75') ? DEFAULT_WS_URL : prev || DEFAULT_WS_URL,
+      );
     }
   }, [connected]);
 
@@ -93,6 +96,10 @@ export function OnlineLobbyScreen({ online, character, onBack }: OnlineLobbyScre
               placeholder={DEFAULT_WS_URL}
             />
           </label>
+          <p className="online-lobby__hint online-lobby__hint--server">
+            联机技能需本机服务端：终端运行 <code>npm run server</code>，地址填{' '}
+            <code>{DEFAULT_WS_URL}</code>（勿使用旧远程 {LEGACY_REMOTE_WS_URL}）
+          </p>
           <label className="online-lobby__field">
             <span>房间号</span>
             <input

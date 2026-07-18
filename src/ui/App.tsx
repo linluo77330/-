@@ -40,6 +40,17 @@ function OfflineGameSession({
   );
 }
 
+function OnlineGameLoading({ message = '正在同步联机对局…' }: { message?: string }) {
+  return (
+    <div className="game-layout game-layout--loading">
+      <div className="game-layout__loading-panel">
+        <p>{message}</p>
+        <p className="game-layout__loading-sub">若长时间无响应，请返回房间重新连接</p>
+      </div>
+    </div>
+  );
+}
+
 function OnlineSession({
   character,
   onExit,
@@ -55,6 +66,15 @@ function OnlineSession({
   };
 
   const showGameTable = online.view !== null && online.view.phase !== 'idle';
+
+  const waitingForGameSync =
+    online.connected &&
+    online.roomState?.inGame === true &&
+    (online.view === null || online.view.phase === 'idle');
+
+  if (waitingForGameSync) {
+    return <OnlineGameLoading />;
+  }
 
   if (showGameTable) {
     return (

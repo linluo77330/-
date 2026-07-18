@@ -1,4 +1,11 @@
-import type { GameSnapshot, PlayerIndex, PlayerStateView, PlayerView, SkillViewState } from './types.js';
+import type {
+  DrawMode,
+  GameSnapshot,
+  PlayerIndex,
+  PlayerStateView,
+  PlayerView,
+  SkillViewState,
+} from './types.js';
 import {
   LET_ME_DRAW_MAX_USES,
   LET_ME_DRAW_SKILL_DESC,
@@ -6,6 +13,7 @@ import {
   LET_ME_DRAW_SKILL_NAME,
   SHOU_DUAN_ZHE_ID,
   buildLetMeDrawActivity,
+  canPlayerUseLetMeDrawSkill,
   canUseLetMeDraw,
   getLetMeDrawUsesRemaining,
   isShouDuanZhe,
@@ -24,6 +32,7 @@ import {
 import {
   JUE_WANG_DE_WEN_MANG_ID,
   buildCantReadActivity,
+  canPlayerUseCantReadSkill,
   canUseCantRead,
   CANT_READ_SKILL_DESC,
   CANT_READ_SKILL_ID,
@@ -143,6 +152,166 @@ function buildSkillActivity(snapshot: GameSnapshot, viewer: PlayerIndex) {
   );
 }
 
+function normalizeHandView(hand: unknown): PlayerStateView['hand'] {
+  if (hand && typeof hand === 'object' && 'kind' in hand) {
+    const hv = hand as PlayerStateView['hand'];
+    if (hv.kind === 'visible' && Array.isArray(hv.tiles)) return hv;
+    if (hv.kind === 'hidden' && typeof hv.count === 'number') return hv;
+  }
+  if (Array.isArray(hand)) {
+    return { kind: 'visible', tiles: hand.map((tile) => ({ ...tile })) };
+  }
+  return { kind: 'hidden', count: 0 };
+}
+
+function normalizePlayerState(raw: unknown): PlayerStateView {
+  if (raw && typeof raw === 'object') {
+    const state = raw as Partial<PlayerStateView>;
+    return {
+      hand: normalizeHandView(state.hand),
+      discards: Array.isArray(state.discards) ? state.discards.map((t) => ({ ...t })) : [],
+      melds: Array.isArray(state.melds)
+        ? state.melds.map((meld) => ({
+            ...meld,
+            tiles: meld.tiles.map((t) => ({ ...t })),
+          }))
+        : [],
+    };
+  }
+  return { hand: { kind: 'hidden', count: 0 }, discards: [], melds: [] };
+}
+
+export interface NormalizePlayerViewOptions {
+  viewerCharacterId?: string;
+  seatCharacterIds?: Partial<Record<PlayerIndex, string>>;
+}
+
+function patchPlayerCharacters(
+  raw: Partial<PlayerView>['playerCharacters'],
+  viewer: PlayerIndex,
+  options?: NormalizePlayerViewOptions,
+): PlayerView['playerCharacters'] {
+  const playerCharacters = [...(raw ?? ['', '', '', ''])] as PlayerView['playerCharacters'];
+
+  if (options?.viewerCharacterId && !playerCharacters[viewer]) {
+    playerCharacters[viewer] = options.viewerCharacterId;
+  }
+
+  if (options?.seatCharacterIds) {
+    for (const [index, characterId] of Object.entries(options.seatCharacterIds)) {
+      const playerIndex = Number(index) as PlayerIndex;
+      if (characterId && !playerCharacters[playerIndex]) {
+        playerCharacters[playerIndex] = characterId;
+      }
+    }
+  }
+
+  return playerCharacters;
+}
+
+function inferDrawModeForView(view: PlayerView): DrawMode | null {
+  if (view.drawMode) return view.drawMode;
+  if (view.phase !== 'draw' || view.currentPlayer !== view.viewer) return null;
+  if (view.skillModeActive) return null;
+
+  const snapshot = {
+    playerCharacters: view.playerCharacters,
+    skillUses: view.skillUses,
+    players: view.players.map(playerStateViewToRaw),
+  } as Pick<GameSnapshot, 'playerCharacters' | 'skillUses' | 'players'>;
+
+  const player = view.viewer;
+  if (
+    canPlayerUseLetMeDrawSkill(snapshot, player) ||
+    canPlayerUseCantReadSkill(snapshot, player) ||
+    isDuiKangLuGaluo(view.playerCharacters[player])
+  ) {
+    return 'choose';
+  }
+
+  return null;
+}
+
+function playerStateViewToRaw(state: PlayerStateView): GameSnapshot['players'][0] {
+  return {
+    hand: state.hand.kind === 'visible' ? state.hand.tiles.map((t) => ({ ...t })) : [],
+    discards: state.discards.map((t) => ({ ...t })),
+    melds: state.melds.map((m) => ({ ...m, tiles: m.tiles.map((t) => ({ ...t })) })),
+  };
+}
+
+function viewSkillModeFromActivity(view: PlayerView): GameSnapshot['skillMode'] {
+  if (!view.skillModeActive) return null;
+  const activity = view.skillActivity;
+  if (!activity) {
+    return { skillId: 'let_me_draw', step: 'pick_discard' } as GameSnapshot['skillMode'];
+  }
+  return { skillId: activity.skillId, step: activity.step } as GameSnapshot['skillMode'];
+}
+
+/** 联机客户端：与单机 buildPlayerView 一致，重算 skill / skillActivity */
+export function refreshPlayerViewSkills(view: PlayerView): PlayerView {
+  const snapshot = {
+    phase: view.phase,
+    currentPlayer: view.currentPlayer,
+    dealer: view.dealer,
+    turnNumber: view.turnNumber,
+    drawMode: view.drawMode,
+    skillMode: viewSkillModeFromActivity(view),
+    playerCharacters: view.playerCharacters,
+    skillUses: view.skillUses,
+    players: view.players.map(playerStateViewToRaw) as GameSnapshot['players'],
+  } as GameSnapshot;
+
+  return {
+    ...view,
+    skill: buildSkillView(snapshot, view.viewer),
+    skillActivity: view.skillModeActive
+      ? buildSkillActivity(snapshot, view.viewer) ?? view.skillActivity
+      : null,
+  };
+}
+
+/** 联机：规范化服务端 payload，与单机 buildPlayerView 对齐 */
+export function normalizePlayerView(
+  raw: Partial<PlayerView> & Pick<PlayerView, 'viewer'>,
+  options?: NormalizePlayerViewOptions,
+): PlayerView {
+  const players = ([0, 1, 2, 3] as PlayerIndex[]).map((index) =>
+    normalizePlayerState(raw.players?.[index]),
+  ) as PlayerView['players'];
+
+  const playerCharacters = patchPlayerCharacters(raw.playerCharacters, raw.viewer, options);
+
+  const base: PlayerView = {
+    viewer: raw.viewer,
+    phase: raw.phase ?? 'idle',
+    currentPlayer: raw.currentPlayer ?? raw.viewer,
+    dealer: raw.dealer ?? 0,
+    deckCount: raw.deckCount ?? 0,
+    players,
+    lastDiscard: raw.lastDiscard ?? null,
+    pendingResponses: raw.pendingResponses ?? [],
+    responseLevel: raw.responseLevel ?? null,
+    turnNumber: raw.turnNumber ?? 0,
+    winner: raw.winner ?? null,
+    winInfo: raw.winInfo ?? null,
+    wildcard: raw.wildcard ?? null,
+    playerCharacters,
+    skillUses: raw.skillUses ?? [0, 0, 0, 0],
+    drawMode: raw.drawMode ?? null,
+    skillModeActive: raw.skillModeActive ?? raw.skillActivity != null,
+    skill: raw.skill ?? null,
+    skillActivity: raw.skillActivity ?? null,
+    gameOverReason: raw.gameOverReason ?? null,
+  };
+
+  return refreshPlayerViewSkills({
+    ...base,
+    drawMode: inferDrawModeForView(base),
+  });
+}
+
 /** 联机：按 viewer 隐藏他人手牌与牌墙 */
 export function buildPlayerView(snapshot: GameSnapshot, viewer: PlayerIndex): PlayerView {
   const players = snapshot.players.map((state, i) =>
@@ -180,6 +349,8 @@ export function buildPlayerView(snapshot: GameSnapshot, viewer: PlayerIndex): Pl
       : null,
   playerCharacters: [...snapshot.playerCharacters] as PlayerView['playerCharacters'],
   skillUses: [...snapshot.skillUses] as PlayerView['skillUses'],
+    drawMode: snapshot.drawMode,
+    skillModeActive: snapshot.skillMode !== null,
     skill: buildSkillView(snapshot, viewer),
     skillActivity: buildSkillActivity(snapshot, viewer),
     gameOverReason: snapshot.gameOverReason,

@@ -412,6 +412,7 @@ export class Room {
   private scheduleAutoDraw(): void {
     if (this.drawTimer) clearTimeout(this.drawTimer);
     if (this.abortTimer || !this.game || this.game.getPhase() !== 'draw') return;
+    // 与单机 useBotPlayers 一致：摸牌选择或技能交互中不自动摸牌
     if (this.game.needsDrawChoice() || this.game.isSkillActive()) return;
 
     this.drawTimer = setTimeout(() => {

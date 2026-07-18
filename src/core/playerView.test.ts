@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { GameSnapshot, Tile } from './types.js';
-import { buildPlayerView, assertPlayerViewSafe } from './playerView.js';
+import { buildPlayerView, assertPlayerViewSafe, normalizePlayerView } from './playerView.js';
 
 let id = 0;
 function t(suit: Tile['suit'], rank: number): Tile {
@@ -76,5 +76,55 @@ describe('buildPlayerView winner reveal', () => {
     expect(actorView.skillActivity?.pickableDiscards).toHaveLength(1);
     expect(observerView.skillActivity?.player).toBe(1);
     expect(observerView.skillActivity?.pickableDiscards).toHaveLength(0);
+  });
+});
+
+describe('normalizePlayerView', () => {
+  it('drawMode 为 choose 时可激活摸牌阶段技能', () => {
+    const tile = t('wan', 1);
+    const view = normalizePlayerView({
+      viewer: 0,
+      phase: 'draw',
+      currentPlayer: 0,
+      dealer: 0,
+      deckCount: 80,
+      drawMode: 'choose',
+      skillModeActive: false,
+      playerCharacters: ['shou_duan_zhe', '', '', ''],
+      skillUses: [0, 0, 0, 0],
+      players: [
+        { hand: { kind: 'visible', tiles: [tile] }, discards: [t('tong', 2)], melds: [] },
+        { hand: { kind: 'hidden', count: 13 }, discards: [], melds: [] },
+        { hand: { kind: 'hidden', count: 13 }, discards: [], melds: [] },
+        { hand: { kind: 'hidden', count: 13 }, discards: [], melds: [] },
+      ],
+    } as never);
+
+    expect(view.skill?.canActivate).toBe(true);
+  });
+
+  it('缺 drawMode 时客户端推断 choose 并重算 canActivate', () => {
+    const tile = t('wan', 1);
+    const view = normalizePlayerView(
+      {
+        viewer: 0,
+        phase: 'draw',
+        currentPlayer: 0,
+        dealer: 0,
+        deckCount: 80,
+        playerCharacters: ['', '', '', ''],
+        skillUses: [0, 0, 0, 0],
+        players: [
+          { hand: { kind: 'visible', tiles: [tile] }, discards: [t('tong', 2)], melds: [] },
+          { hand: { kind: 'hidden', count: 13 }, discards: [], melds: [] },
+          { hand: { kind: 'hidden', count: 13 }, discards: [], melds: [] },
+          { hand: { kind: 'hidden', count: 13 }, discards: [], melds: [] },
+        ],
+      } as never,
+      { viewerCharacterId: 'shou_duan_zhe' },
+    );
+
+    expect(view.drawMode).toBe('choose');
+    expect(view.skill?.canActivate).toBe(true);
   });
 });

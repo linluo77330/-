@@ -243,6 +243,10 @@ export interface PlayerView {
   wildcard: WildcardConfig | null;
   playerCharacters: [string, string, string, string];
   skillUses: [number, number, number, number];
+  /** 摸牌阶段：choose=可选技能或牌墙 */
+  drawMode: DrawMode | null;
+  /** 是否有技能交互进行中 */
+  skillModeActive: boolean;
   skill: SkillViewState | null;
   /** 有玩家正在发动技能并选择效果时为非 null */
   skillActivity: SkillActivityView | null;

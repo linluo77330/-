@@ -38,6 +38,17 @@ type GameTableProps =
 
 const SEAT_POSITIONS: ('bottom' | 'left' | 'top' | 'right')[] = ['bottom', 'left', 'top', 'right'];
 
+function OnlineGameLoading({ message = '正在同步联机对局…' }: { message?: string }) {
+  return (
+    <div className="game-layout game-layout--loading">
+      <div className="game-layout__loading-panel">
+        <p>{message}</p>
+        <p className="game-layout__loading-sub">若长时间无响应，请返回房间重新连接</p>
+      </div>
+    </div>
+  );
+}
+
 function relativeSeat(viewer: PlayerIndex, absolute: PlayerIndex): number {
   return (absolute - viewer + 4) % 4;
 }
@@ -116,6 +127,7 @@ function OnlineGameTable({
     drawnTileId,
     gameAbortWarning,
     gameLog,
+    error,
     discard,
     respondOption,
     pass,
@@ -125,23 +137,25 @@ function OnlineGameTable({
     skillVote,
   } = online;
 
-  if (!view || playerIndex === null) {
-    return null;
+  if (!view) {
+    return <OnlineGameLoading />;
   }
+
+  const humanPlayer = playerIndex ?? view.viewer;
 
   const seatNames =
     roomState?.seats.map((s) => s.name || PLAYER_NAMES[s.playerIndex]) ?? [...PLAYER_NAMES];
 
   const handleTileClick = (tile: TileType) => {
-    if (view.phase !== 'discard' || view.currentPlayer !== playerIndex) return;
-    if (view.skillActivity?.player === playerIndex) return;
+    if (view.phase !== 'discard' || view.currentPlayer !== humanPlayer) return;
+    if (view.skillActivity?.player === humanPlayer) return;
     discard(tile.id);
   };
 
   return (
     <GameTableLayout
       view={view}
-      humanPlayer={playerIndex}
+      humanPlayer={humanPlayer}
       seatNames={seatNames}
       drawnTileId={drawnTileId}
       gameLog={gameLog}
@@ -154,9 +168,13 @@ function OnlineGameTable({
       onSkillPick={skillPick}
       onSkillVote={skillVote}
       showStart={false}
+      headerOnline={{
+        name: seatNames[humanPlayer] ?? '你',
+        roomId: roomState?.roomId ?? '',
+      }}
       headerCharacter={{
         ...character,
-        tagline: `房间 ${roomState?.roomId ?? ''} · ${seatNames[playerIndex] ?? '你'}`,
+        tagline: `房间 ${roomState?.roomId ?? ''} · ${seatNames[humanPlayer] ?? '你'}`,
       }}
       abortBanner={
         gameAbortWarning
@@ -166,6 +184,7 @@ function OnlineGameTable({
             }
           : null
       }
+      errorBanner={error}
       onExit={onExit}
       exitLabel="返回房间"
     />
@@ -186,6 +205,7 @@ interface GameTableLayoutProps {
   headerCharacter?: Character;
   headerOnline?: { name: string; roomId: string };
   abortBanner?: { playerName: string; secondsLeft: number } | null;
+  errorBanner?: string | null;
   onExit: () => void;
   exitLabel: string;
   character: Character;
@@ -209,6 +229,7 @@ function GameTableLayout({
   headerCharacter,
   headerOnline,
   abortBanner,
+  errorBanner,
   onExit,
   exitLabel,
   character,
@@ -306,6 +327,12 @@ function GameTableLayout({
               ? `${abortBanner.secondsLeft} 秒后自动结束并返回大厅`
               : '正在返回大厅…'}
           </p>
+        </div>
+      )}
+
+      {errorBanner && (
+        <div className="game-error-banner" role="alert">
+          {errorBanner}
         </div>
       )}
 
