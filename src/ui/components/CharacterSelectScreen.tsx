@@ -3,17 +3,23 @@ import { CHARACTERS, type Character } from '../data/characters';
 
 interface CharacterSelectScreenProps {
   onConfirm: (character: Character) => void;
+  onBack?: () => void;
 }
 
-export function CharacterSelectScreen({ onConfirm }: CharacterSelectScreenProps) {
+export function CharacterSelectScreen({ onConfirm, onBack }: CharacterSelectScreenProps) {
   const [selected, setSelected] = useState<Character | null>(null);
 
   return (
     <div className="character-select">
       <div className="character-select__panel">
         <header className="character-select__header">
-          <h1>技能麻将</h1>
-          <p className="character-select__sub">选择角色后开始对局（技能系统待接入）</p>
+          {onBack && (
+            <button type="button" className="screen-panel__back screen-panel__back--inline btn btn--ghost" onClick={onBack}>
+              ← 主菜单
+            </button>
+          )}
+          <h1>选择角色</h1>
+          <p className="character-select__sub">离线单机 · 选择角色后开始对局</p>
         </header>
 
         <div className="character-select__grid">
