@@ -13,6 +13,28 @@ export type {
   ResponseOption,
   Suit,
   Tile,
+  WildcardConfig,
+  PlayerView,
+  PlayerStateView,
+  HandView,
+  HiddenHandView,
+  VisibleHandView,
 } from './types.js';
-export { canWin, canStandardWin, isSevenPairs, isTenpai, getWaitingTiles, getTenpaiTiles, sameTileType } from './winCheck.js';
+export {
+  canWin,
+  canStandardWin,
+  isSevenPairs,
+  isTenpai,
+  getWaitingTiles,
+  getTenpaiTiles,
+  sameTileType,
+} from './winCheck.js';
 export { createDeck, shuffleDeck, tilesEqual } from './deck.js';
+export {
+  createWildcardConfig,
+  isWildcardTile,
+  isHaku,
+  wildcardDescription,
+  HAKU_TYPE,
+} from './wildcard.js';
+export { buildPlayerView, assertPlayerViewSafe } from './playerView.js';

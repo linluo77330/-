@@ -10,8 +10,12 @@ function tileKey(t: Tile): string {
   return `${t.suit}-${t.rank}`;
 }
 
-function pickDiscardTile(hand: Tile[], melds: GameSnapshot['players'][0]['melds']): Tile {
-  const waiting = getWaitingTiles(hand, melds);
+function pickDiscardTile(
+  hand: Tile[],
+  melds: GameSnapshot['players'][0]['melds'],
+  wildcard: GameSnapshot['wildcard'],
+): Tile {
+  const waiting = getWaitingTiles(hand, melds, wildcard);
   const waitingKeys = new Set(waiting.map(tileKey));
 
   const counts = new Map<string, Tile[]>();
@@ -61,7 +65,7 @@ export function useBotPlayers(game: MahjongGame, snapshot: GameSnapshot) {
       timerRef.current = setTimeout(fn, delay);
     };
 
-    if (phase === 'draw' && currentPlayer !== HUMAN) {
+    if (phase === 'draw') {
       schedule(() => game.drawCard());
       return;
     }
@@ -70,7 +74,8 @@ export function useBotPlayers(game: MahjongGame, snapshot: GameSnapshot) {
       schedule(() => {
         const state = game.getSnapshot().players[currentPlayer];
         if (state.hand.length === 0) return;
-        game.discardCard(pickDiscardTile(state.hand, state.melds).id);
+        const snap = game.getSnapshot();
+        game.discardCard(pickDiscardTile(state.hand, state.melds, snap.wildcard).id);
       });
       return;
     }

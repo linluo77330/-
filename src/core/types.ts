@@ -58,6 +58,13 @@ export interface ResponseOption {
   chiTiles?: [Tile, Tile];
 }
 
+export interface WildcardConfig {
+  /** 发牌后从牌墙首张翻出的指示牌 */
+  indicator: Tile;
+  /** 由翻牌决定的赖子牌型 */
+  wildcardType: Pick<Tile, 'suit' | 'rank'>;
+}
+
 export interface GameSnapshot {
   phase: GamePhase;
   currentPlayer: PlayerIndex;
@@ -70,4 +77,47 @@ export interface GameSnapshot {
   responseLevel: Exclude<ResponseAction, 'pass'> | null;
   turnNumber: number;
   winner: PlayerIndex | null;
+  /** 万能牌配置；发牌后翻首张牌确定 */
+  wildcard: WildcardConfig | null;
+}
+
+/** 联机：他人手牌仅可见张数 */
+export interface HiddenHandView {
+  kind: 'hidden';
+  count: number;
+}
+
+/** 联机：己方手牌完整可见 */
+export interface VisibleHandView {
+  kind: 'visible';
+  tiles: Tile[];
+}
+
+export type HandView = HiddenHandView | VisibleHandView;
+
+/** 联机：单个玩家的公开/私有状态 */
+export interface PlayerStateView {
+  hand: HandView;
+  discards: Tile[];
+  melds: Meld[];
+}
+
+/**
+ * 联机视角快照：不含牌墙明细、不含他人手牌
+ * @see MahjongGame.getSnapshotForPlayer
+ */
+export interface PlayerView {
+  viewer: PlayerIndex;
+  phase: GamePhase;
+  currentPlayer: PlayerIndex;
+  dealer: PlayerIndex;
+  deckCount: number;
+  players: [PlayerStateView, PlayerStateView, PlayerStateView, PlayerStateView];
+  lastDiscard: LastDiscard | null;
+  /** 仅包含 viewer 可执行的响应选项 */
+  pendingResponses: ResponseOption[];
+  responseLevel: Exclude<ResponseAction, 'pass'> | null;
+  turnNumber: number;
+  winner: PlayerIndex | null;
+  wildcard: WildcardConfig | null;
 }

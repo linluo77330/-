@@ -1,9 +1,10 @@
-import type { Meld, Tile } from './types.js';
+import type { Meld, Tile, WildcardConfig } from './types.js';
+import { isWildcardTile } from './wildcard.js';
 
 const NUMBER_SUITS = new Set(['wan', 'tong', 'tiao']);
 
 /** 34 种牌型索引：万1-9, 筒1-9, 条1-9, 风1-4, 箭1-3 */
-export function tileIndex(tile: Tile): number {
+export function tileIndex(tile: Pick<Tile, 'suit' | 'rank'>): number {
   const base: Record<Tile['suit'], number> = {
     wan: 0,
     tong: 9,
@@ -43,6 +44,36 @@ export function isSevenPairs(tiles: Tile[]): boolean {
   return pairs === 7;
 }
 
+function isSevenPairsWithWildcards(fixed: Tile[], wildCount: number): boolean {
+  if (fixed.length + wildCount !== 14) return false;
+
+  const counts = tilesToCounts(fixed);
+  let wild = wildCount;
+  let pairsNeeded = 7;
+
+  for (let i = 0; i < 34; i++) {
+    while (counts[i] >= 2 && pairsNeeded > 0) {
+      counts[i] -= 2;
+      pairsNeeded -= 1;
+    }
+  }
+
+  for (let i = 0; i < 34; i++) {
+    while (counts[i] >= 1 && wild >= 1 && pairsNeeded > 0) {
+      counts[i] -= 1;
+      wild -= 1;
+      pairsNeeded -= 1;
+    }
+  }
+
+  while (wild >= 2 && pairsNeeded > 0) {
+    wild -= 2;
+    pairsNeeded -= 1;
+  }
+
+  return pairsNeeded === 0 && totalTiles(counts) === 0 && wild === 0;
+}
+
 /** 递归：从 counts 中拆出 numSets 组面子（刻子或顺子） */
 function canFormMelds(counts: number[], numSets: number): boolean {
   if (numSets === 0) return totalTiles(counts) === 0;
@@ -79,6 +110,74 @@ function canFormMelds(counts: number[], numSets: number): boolean {
   return false;
 }
 
+function canFormMeldsWithWildcards(counts: number[], numSets: number, wild: number): boolean {
+  const fixedTotal = totalTiles(counts);
+
+  if (numSets === 0) {
+    return fixedTotal === 0 && wild === 0;
+  }
+
+  if (fixedTotal === 0) {
+    return wild >= numSets * 3 && wild % 3 === 0;
+  }
+
+  const start = counts.findIndex((c) => c > 0);
+  if (start === -1) {
+    return wild >= numSets * 3 && wild % 3 === 0;
+  }
+
+  // 刻子：实牌 + 赖子
+  for (let useWild = 0; useWild <= Math.min(2, wild); useWild++) {
+    const needReal = 3 - useWild;
+    if (counts[start] >= needReal) {
+      counts[start] -= needReal;
+      if (canFormMeldsWithWildcards(counts, numSets - 1, wild - useWild)) {
+        counts[start] += needReal;
+        return true;
+      }
+      counts[start] += needReal;
+    }
+  }
+
+  // 顺子（仅数牌）
+  if (start <= 26) {
+    const suitBase = Math.floor(start / 9) * 9;
+    const rank = start - suitBase;
+    if (rank <= 7) {
+      const slots = [start, start + 1, start + 2];
+      for (let mask = 0; mask < 8; mask++) {
+        let useWild = 0;
+        const taken: number[] = [];
+        let ok = true;
+
+        for (let s = 0; s < 3; s++) {
+          const useReal = (mask >> s) & 1;
+          if (useReal) {
+            if (counts[slots[s]] <= 0) {
+              ok = false;
+              break;
+            }
+            taken.push(slots[s]);
+          } else {
+            useWild += 1;
+          }
+        }
+
+        if (!ok || useWild > wild) continue;
+
+        for (const idx of taken) counts[idx] -= 1;
+        if (canFormMeldsWithWildcards(counts, numSets - 1, wild - useWild)) {
+          for (const idx of taken) counts[idx] += 1;
+          return true;
+        }
+        for (const idx of taken) counts[idx] += 1;
+      }
+    }
+  }
+
+  return false;
+}
+
 /** 标准胡：m 组已有鸣牌 + 剩余牌组成 (4-m) 面子 + 1 对将 */
 export function canStandardWin(tiles: Tile[], meldCount: number): boolean {
   const setsNeeded = 4 - meldCount;
@@ -99,13 +198,80 @@ export function canStandardWin(tiles: Tile[], meldCount: number): boolean {
   return false;
 }
 
+function canStandardWinWithWildcards(fixed: Tile[], wildCount: number, meldCount: number): boolean {
+  const setsNeeded = 4 - meldCount;
+  const expected = setsNeeded * 3 + 2;
+  if (fixed.length + wildCount !== expected) return false;
+
+  const baseCounts = tilesToCounts(fixed);
+
+  for (let jPair = 0; jPair <= Math.min(2, wildCount); jPair++) {
+    const wildAfterPair = wildCount - jPair;
+
+    for (let i = 0; i < 34; i++) {
+      const needReal = Math.max(0, 2 - jPair);
+      if (baseCounts[i] < needReal) continue;
+
+      const counts = cloneCounts(baseCounts);
+      counts[i] -= needReal;
+
+      if (canFormMeldsWithWildcards(counts, setsNeeded, wildAfterPair)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+function splitWildcards(tiles: Tile[], wildcard: WildcardConfig | null | undefined): {
+  fixed: Tile[];
+  wildCount: number;
+} {
+  if (!wildcard) return { fixed: tiles, wildCount: 0 };
+  const fixed: Tile[] = [];
+  let wildCount = 0;
+  for (const tile of tiles) {
+    if (isWildcardTile(tile, wildcard)) wildCount += 1;
+    else fixed.push(tile);
+  }
+  return { fixed, wildCount };
+}
+
+function canWinInternal(
+  allTiles: Tile[],
+  meldCount: number,
+  wildcard: WildcardConfig | null | undefined,
+): boolean {
+  const { fixed, wildCount } = splitWildcards(allTiles, wildcard);
+
+  if (meldCount === 0 && fixed.length + wildCount === 14) {
+    if (wildcard) {
+      if (isSevenPairsWithWildcards(fixed, wildCount)) return true;
+    } else if (isSevenPairs(allTiles)) {
+      return true;
+    }
+  }
+
+  if (wildcard) {
+    return canStandardWinWithWildcards(fixed, wildCount, meldCount);
+  }
+  return canStandardWin(allTiles, meldCount);
+}
+
 /**
  * 胡牌判定
  * @param hand  当前手牌（自摸时含刚摸的牌；荣胡时不含点炮牌）
  * @param melds 已有鸣牌（每组计 1 面子）
  * @param winTile 胡的那张牌
+ * @param wildcard 万能牌配置（可选）
  */
-export function canWin(hand: Tile[], melds: Meld[], winTile: Tile): boolean {
+export function canWin(
+  hand: Tile[],
+  melds: Meld[],
+  winTile: Tile,
+  wildcard?: WildcardConfig | null,
+): boolean {
   const winAlreadyInHand = hand.some((t) => t.id === winTile.id);
   const allTiles = winAlreadyInHand ? [...hand] : [...hand, winTile];
 
@@ -115,44 +281,42 @@ export function canWin(hand: Tile[], melds: Meld[], winTile: Tile): boolean {
 
   if (allTiles.length !== expectedTiles) return false;
 
-  // 门清七对
-  if (meldCount === 0 && allTiles.length === 14 && isSevenPairs(allTiles)) {
-    return true;
-  }
-
-  return canStandardWin(allTiles, meldCount);
+  return canWinInternal(allTiles, meldCount, wildcard);
 }
 
 /** 是否听牌（差一张胡） */
-export function isTenpai(hand: Tile[], melds: Meld[]): boolean {
-  // 枚举所有可能胡的牌型
-  for (let suit of ['wan', 'tong', 'tiao', 'feng', 'dragon'] as Tile['suit'][]) {
+export function isTenpai(hand: Tile[], melds: Meld[], wildcard?: WildcardConfig | null): boolean {
+  for (const suit of ['wan', 'tong', 'tiao', 'feng', 'dragon'] as Tile['suit'][]) {
     const max = suit === 'feng' ? 4 : suit === 'dragon' ? 3 : 9;
     for (let rank = 1; rank <= max; rank++) {
       const probe: Tile = { id: '__probe__', suit, rank };
-      if (canWin(hand, melds, probe)) return true;
+      if (canWin(hand, melds, probe, wildcard)) return true;
     }
   }
   return false;
 }
 
 /** 返回所有可胡的牌（13 张手牌 + 进张） */
-export function getWaitingTiles(hand: Tile[], melds: Meld[]): Tile[] {
+export function getWaitingTiles(hand: Tile[], melds: Meld[], wildcard?: WildcardConfig | null): Tile[] {
   const waiting: Tile[] = [];
-  for (let suit of ['wan', 'tong', 'tiao', 'feng', 'dragon'] as Tile['suit'][]) {
+  for (const suit of ['wan', 'tong', 'tiao', 'feng', 'dragon'] as Tile['suit'][]) {
     const max = suit === 'feng' ? 4 : suit === 'dragon' ? 3 : 9;
     for (let rank = 1; rank <= max; rank++) {
       const probe: Tile = { id: `wait_${suit}_${rank}`, suit, rank };
-      if (canWin(hand, melds, probe)) waiting.push(probe);
+      if (canWin(hand, melds, probe, wildcard)) waiting.push(probe);
     }
   }
   return waiting;
 }
 
 /** 返回打某张牌后听的牌（14 张待出时） */
-export function getTenpaiTiles(hand: Tile[], melds: Meld[]): Tile[] {
+export function getTenpaiTiles(
+  hand: Tile[],
+  melds: Meld[],
+  wildcard?: WildcardConfig | null,
+): Tile[] {
   const meldCount = melds.length;
-  const expectedAfterDiscard = (4 - meldCount) * 3 + 2 - 1; // 出牌后手牌数
+  const expectedAfterDiscard = (4 - meldCount) * 3 + 2 - 1;
   if (hand.length !== expectedAfterDiscard + 1) return [];
 
   const seen = new Set<string>();
@@ -160,7 +324,7 @@ export function getTenpaiTiles(hand: Tile[], melds: Meld[]): Tile[] {
 
   for (let i = 0; i < hand.length; i++) {
     const reduced = hand.filter((_, idx) => idx !== i);
-    for (const wait of getWaitingTiles(reduced, melds)) {
+    for (const wait of getWaitingTiles(reduced, melds, wildcard)) {
       const key = `${wait.suit}-${wait.rank}`;
       if (!seen.has(key)) {
         seen.add(key);

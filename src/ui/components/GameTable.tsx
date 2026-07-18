@@ -1,10 +1,11 @@
-import type { PlayerIndex, Tile as TileType, ResponseOption } from '@/core/types';
+import type { PlayerIndex, Tile as TileType, WildcardConfig } from '@/core/types';
+import { wildcardDescription } from '@/core/wildcard';
 import { tileLabel, PLAYER_NAMES } from '../utils/tileLabels';
 import { ActionPanel } from './ActionPanel';
 import { PlayerSeat } from './PlayerSeat';
-import { ResponseBanner } from './ResponseBanner';
 import { Tile } from './Tile';
 import { getTenpaiTiles } from '@/core/winCheck';
+import type { Character } from '../data/characters';
 import type { useMahjongGame } from '../hooks/useMahjongGame';
 
 const HUMAN: PlayerIndex = 0;
@@ -13,22 +14,17 @@ type GameApi = ReturnType<typeof useMahjongGame>;
 
 interface GameTableProps {
   gameApi: GameApi;
+  character: Character;
+  onChangeCharacter: () => void;
 }
 
-const SEAT_LAYOUT: { index: PlayerIndex; position: 'bottom' | 'left' | 'top' | 'right' }[] = [
-  { index: 0, position: 'bottom' },
-  { index: 1, position: 'left' },
-  { index: 2, position: 'top' },
-  { index: 3, position: 'right' },
-];
-
-export function GameTable({ gameApi }: GameTableProps) {
-  const { snapshot, start, draw, discard, respondOption, pass, log } = gameApi;
+export function GameTable({ gameApi, character, onChangeCharacter }: GameTableProps) {
+  const { snapshot, start, discard, respondOption, pass, log, drawnTileId } = gameApi;
 
   const humanState = snapshot.players[HUMAN];
   const waitingTiles =
     snapshot.phase === 'discard' && snapshot.currentPlayer === HUMAN
-      ? getTenpaiTiles(humanState.hand, humanState.melds)
+      ? getTenpaiTiles(humanState.hand, humanState.melds, snapshot.wildcard)
       : [];
 
   const handleTileClick = (tile: TileType) => {
@@ -36,30 +32,77 @@ export function GameTable({ gameApi }: GameTableProps) {
     discard(tile.id);
   };
 
+  const seats: { index: PlayerIndex; position: 'bottom' | 'left' | 'top' | 'right' }[] = [
+    { index: 0, position: 'bottom' },
+    { index: 1, position: 'left' },
+    { index: 2, position: 'top' },
+    { index: 3, position: 'right' },
+  ];
+
   return (
     <div className="game-layout">
       <header className="game-header">
-        <h1>技能麻将</h1>
-        <p className="game-header__sub">基础麻将对局 · 事件驱动引擎</p>
+        <div className="game-header__row">
+          <div className="game-header__character" style={{ borderColor: character.accent }}>
+            <span className="game-header__character-badge" style={{ background: character.accent }}>
+              {character.name.slice(-1)}
+            </span>
+            <div>
+              <strong>{character.name}</strong>
+              <span className="game-header__character-tag">{character.tagline}</span>
+            </div>
+          </div>
+          <div className="game-header__title">
+            <h1>技能麻将</h1>
+            <p className="game-header__sub">基础麻将对局 · 事件驱动引擎</p>
+          </div>
+          <button type="button" className="btn btn--ghost game-header__back" onClick={onChangeCharacter}>
+            换角色
+          </button>
+        </div>
       </header>
-
-      <ResponseBanner
-        snapshot={snapshot}
-        humanPlayer={HUMAN}
-        onRespond={respondOption}
-        onPass={() => pass(HUMAN)}
-      />
 
       <div className="game-table">
         <div className="game-table__felt">
+          {seats.map(({ index, position }) => (
+            <PlayerSeat
+              key={index}
+              playerIndex={index}
+              state={snapshot.players[index]}
+              isDealer={snapshot.dealer === index}
+              isActive={snapshot.currentPlayer === index}
+              isHuman={index === HUMAN}
+              position={position}
+              name={PLAYER_NAMES[index]}
+              wildcard={snapshot.wildcard}
+              highlightTileId={index === HUMAN ? drawnTileId : null}
+              onTileClick={index === HUMAN ? handleTileClick : undefined}
+            />
+          ))}
+
           <div className="game-table__center">
             <div className="center-info">
-              <div className="center-info__turn">
-                当前：{PLAYER_NAMES[snapshot.currentPlayer]}
-              </div>
+              {snapshot.wildcard && (
+                <div className="center-info__wildcard">
+                  <div className="center-info__wildcard-label">万能牌</div>
+                  <Tile tile={snapshot.wildcard.indicator} size="sm" />
+                  <div className="center-info__wildcard-desc">
+                    {wildcardDescription(snapshot.wildcard, (t) => tileLabel(t as TileType))}
+                  </div>
+                </div>
+              )}
+              <div className="center-info__turn">当前：{PLAYER_NAMES[snapshot.currentPlayer]}</div>
               {snapshot.phase === 'response' && snapshot.responseLevel && (
                 <div className="center-info__response">
-                  等待【{snapshot.responseLevel === 'chi' ? '吃' : snapshot.responseLevel === 'pong' ? '碰' : snapshot.responseLevel === 'kong' ? '杠' : '胡'}】
+                  等待【
+                  {snapshot.responseLevel === 'chi'
+                    ? '吃'
+                    : snapshot.responseLevel === 'pong'
+                      ? '碰'
+                      : snapshot.responseLevel === 'kong'
+                        ? '杠'
+                        : '胡'}
+                  】
                 </div>
               )}
               {snapshot.lastDiscard && snapshot.phase === 'response' && (
@@ -74,20 +117,6 @@ export function GameTable({ gameApi }: GameTableProps) {
               )}
             </div>
           </div>
-
-          {SEAT_LAYOUT.map(({ index, position }) => (
-            <PlayerSeat
-              key={index}
-              playerIndex={index}
-              state={snapshot.players[index]}
-              isDealer={snapshot.dealer === index}
-              isActive={snapshot.currentPlayer === index}
-              isHuman={index === HUMAN}
-              position={position}
-              name={PLAYER_NAMES[index]}
-              onTileClick={index === HUMAN ? handleTileClick : undefined}
-            />
-          ))}
         </div>
       </div>
 
@@ -95,7 +124,8 @@ export function GameTable({ gameApi }: GameTableProps) {
         snapshot={snapshot}
         humanPlayer={HUMAN}
         onStart={() => start(0)}
-        onDraw={draw}
+        onRespond={respondOption}
+        onPass={() => pass(HUMAN)}
       />
 
       <aside className="game-log">

@@ -47,6 +47,9 @@ export function shuffleDeck(deck: Tile[], random = Math.random): Tile[] {
   return copy;
 }
 
-export function tilesEqual(a: Tile, b: Tile): boolean {
+export function tilesEqual(
+  a: Pick<Tile, 'suit' | 'rank'>,
+  b: Pick<Tile, 'suit' | 'rank'>,
+): boolean {
   return a.suit === b.suit && a.rank === b.rank;
 }

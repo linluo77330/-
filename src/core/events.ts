@@ -6,6 +6,7 @@ import type {
   ResponseAction,
   ResponseOption,
   Tile,
+  WildcardConfig,
 } from './types.js';
 
 /** before_* 监听器返回 false 可取消该动作（预留技能拦截点） */
@@ -14,6 +15,7 @@ export type BeforeHookResult = void | boolean;
 export interface GameEventMap {
   // ── 生命周期 ──
   game_start: { dealer: PlayerIndex };
+  wildcard_reveal: { indicator: Tile; wildcard: WildcardConfig };
   game_over: { winner: PlayerIndex | null; reason: 'hu' | 'draw' | 'abort' };
   phase_change: { from: GamePhase; to: GamePhase };
   turn_change: { player: PlayerIndex; turnNumber: number };

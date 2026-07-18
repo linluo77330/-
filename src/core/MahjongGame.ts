@@ -13,6 +13,9 @@ import type {
   Tile,
 } from './types.js';
 import { canWin } from './winCheck.js';
+import { buildPlayerView } from './playerView.js';
+import { createWildcardConfig } from './wildcard.js';
+import type { WildcardConfig, PlayerView } from './types.js';
 
 const PLAYER_COUNT = 4;
 const INITIAL_HAND_SIZE = 13;
@@ -58,6 +61,7 @@ export class MahjongGame {
   private passedPlayers = new Set<PlayerIndex>();
   private turnNumber = 0;
   private winner: PlayerIndex | null = null;
+  private wildcard: WildcardConfig | null = null;
 
   // ── 事件订阅（代理到内部 emitter）──────────────────────────
 
@@ -91,7 +95,18 @@ export class MahjongGame {
       responseLevel: this.responseLevel,
       turnNumber: this.turnNumber,
       winner: this.winner,
+      wildcard: this.wildcard
+        ? {
+            indicator: { ...this.wildcard.indicator },
+            wildcardType: { ...this.wildcard.wildcardType },
+          }
+        : null,
     };
+  }
+
+  /** 联机：按玩家视角返回隐藏信息后的快照 */
+  getSnapshotForPlayer(viewer: PlayerIndex): PlayerView {
+    return buildPlayerView(this.getSnapshot(), viewer);
   }
 
   getPhase(): GamePhase {
@@ -120,6 +135,7 @@ export class MahjongGame {
     this.responseLevel = null;
     this.passedPlayers.clear();
     this.players = [emptyPlayer(), emptyPlayer(), emptyPlayer(), emptyPlayer()];
+    this.wildcard = null;
 
     this.setPhase('dealing');
 
@@ -132,6 +148,14 @@ export class MahjongGame {
       }
     }
     this.players[dealer].hand.push(this.deck.pop()!);
+
+    // 翻首张牌定万能：同牌型另 3 张 +（翻牌非白板时）白板作赖子
+    if (this.deck.length === 0) {
+      throw new Error('Deck empty after deal');
+    }
+    const indicator = this.deck.pop()!;
+    this.wildcard = createWildcardConfig(indicator);
+    this.events.emit('wildcard_reveal', { indicator, wildcard: this.wildcard });
 
     this.events.emit('game_start', { dealer });
     this.events.emit('turn_change', { player: this.currentPlayer, turnNumber: this.turnNumber });
@@ -413,7 +437,7 @@ export class MahjongGame {
       const state = this.players[player];
 
       // 胡 > 杠 > 碰 > 吃
-      if (canWin(state.hand, state.melds, tile)) {
+      if (canWin(state.hand, state.melds, tile, this.wildcard)) {
         options.push({ player, action: 'hu' });
       }
 
@@ -542,7 +566,7 @@ export class MahjongGame {
       return false;
     }
 
-    if (!canWin(state.hand, state.melds, tile)) {
+    if (!canWin(state.hand, state.melds, tile, this.wildcard)) {
       return false;
     }
 

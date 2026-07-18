@@ -6,6 +6,7 @@ import { tileLabel } from '../utils/tileLabels';
 
 const SYNC_EVENTS: GameEventName[] = [
   'game_start',
+  'wildcard_reveal',
   'game_over',
   'phase_change',
   'turn_change',
@@ -32,6 +33,7 @@ export function useMahjongGame() {
 
   const [snapshot, setSnapshot] = useState<GameSnapshot>(() => game.getSnapshot());
   const [log, setLog] = useState<string[]>([]);
+  const [drawnTileId, setDrawnTileId] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
     setSnapshot(game.getSnapshot());
@@ -43,21 +45,34 @@ export function useMahjongGame() {
 
   useEffect(() => {
     const unsubs = [
-      ...SYNC_EVENTS.map((event) => game.on(event, () => {
-        refresh();
-        return undefined;
-      })),
+      ...SYNC_EVENTS.map((event) =>
+        game.on(event, () => {
+          refresh();
+          return undefined;
+        }),
+      ),
+      game.on('wildcard_reveal', (payload) => {
+        pushLog(`翻万能牌：${tileLabel(payload.indicator)}`);
+      }),
       game.on('after_draw', (payload) => {
         pushLog(`玩家 ${payload.player} 摸了 ${tileLabel(payload.tile)}`);
+        if (payload.player === 0) {
+          setDrawnTileId(payload.tile.id);
+        }
       }),
       game.on('after_discard', (payload) => {
         pushLog(`玩家 ${payload.player} 打出 ${tileLabel(payload.tile)}`);
+        if (payload.player === 0) {
+          setDrawnTileId(null);
+        }
       }),
       game.on('after_response', (payload) => {
         if (payload.won) {
           pushLog(`玩家 ${payload.player} 胡了！`);
         } else if (payload.meld) {
-          pushLog(`玩家 ${payload.player} ${payload.meld.type === 'chi' ? '吃' : payload.meld.type === 'pong' ? '碰' : '杠'}`);
+          pushLog(
+            `玩家 ${payload.player} ${payload.meld.type === 'chi' ? '吃' : payload.meld.type === 'pong' ? '碰' : '杠'}`,
+          );
         }
       }),
       game.on('response_level_change', (payload) => {
@@ -77,6 +92,7 @@ export function useMahjongGame() {
   const start = useCallback(
     (dealer: PlayerIndex = 0) => {
       game.start(dealer);
+      setDrawnTileId(null);
       refresh();
       pushLog('新对局开始');
     },
@@ -85,23 +101,20 @@ export function useMahjongGame() {
 
   const draw = useCallback(() => {
     game.drawCard();
-    refresh();
-  }, [game, refresh]);
+  }, [game]);
 
   const discard = useCallback(
     (tileId: string) => {
       game.discardCard(tileId);
-      refresh();
     },
-    [game, refresh],
+    [game],
   );
 
   const respondOption = useCallback(
     (option: ResponseOption) => {
       game.respond(option.player, option.action, option.chiTiles);
-      refresh();
     },
-    [game, refresh],
+    [game],
   );
 
   const respond = useCallback(
@@ -124,23 +137,22 @@ export function useMahjongGame() {
         if (option?.chiTiles) resolvedChi = option.chiTiles;
       }
       game.respond(player, action, resolvedChi);
-      refresh();
     },
-    [game, refresh],
+    [game],
   );
 
   const pass = useCallback(
     (player: PlayerIndex) => {
       game.passResponse(player);
-      refresh();
     },
-    [game, refresh],
+    [game],
   );
 
   return {
     game,
     snapshot,
     log,
+    drawnTileId,
     start,
     draw,
     discard,
