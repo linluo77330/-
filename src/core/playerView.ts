@@ -4,6 +4,7 @@ import type {
   PlayerIndex,
   PlayerStateView,
   PlayerView,
+  SkillMode,
   SkillViewState,
 } from './types.js';
 import {
@@ -240,12 +241,28 @@ function playerStateViewToRaw(state: PlayerStateView): GameSnapshot['players'][0
   };
 }
 
-/** 联机客户端：重算 skill.canActivate；保留服务端下发的 skillActivity（含拆分/投票选项） */
+function cloneSkillMode(mode: GameSnapshot['skillMode']): SkillMode | null {
+  if (!mode) return null;
+  if (mode.skillId === 'split_tile' && mode.step === 'pick_keep') {
+    return {
+      ...mode,
+      tileA: { ...mode.tileA },
+      tileB: { ...mode.tileB },
+    };
+  }
+  if (mode.skillId === 'instant_win_vote' && mode.step === 'vote') {
+    return { ...mode, votes: [...mode.votes] as typeof mode.votes };
+  }
+  return { ...mode };
+}
+
+/** 联机客户端：重算 skill.canActivate；用 skillMode 重建 skillActivity */
 export function refreshPlayerViewSkills(view: PlayerView): PlayerView {
   const skillMode =
-    view.skillModeActive && view.skillActivity
+    view.skillMode ??
+    (view.skillModeActive && view.skillActivity
       ? ({ skillId: view.skillActivity.skillId, step: view.skillActivity.step } as GameSnapshot['skillMode'])
-      : null;
+      : null);
 
   const snapshot = {
     phase: view.phase,
@@ -259,14 +276,15 @@ export function refreshPlayerViewSkills(view: PlayerView): PlayerView {
     players: view.players.map(playerStateViewToRaw) as GameSnapshot['players'],
   } as GameSnapshot;
 
-  const skillActivity =
-    view.skillActivity ??
-    (view.skillModeActive ? buildSkillActivity(snapshot, view.viewer) : null);
+  const skillActivity = view.skillModeActive
+    ? buildSkillActivity(snapshot, view.viewer) ?? view.skillActivity
+    : null;
 
   return {
     ...view,
+    skillMode,
     skill: buildSkillView(snapshot, view.viewer),
-    skillActivity: view.skillModeActive ? skillActivity : null,
+    skillActivity,
   };
 }
 
@@ -299,6 +317,7 @@ export function normalizePlayerView(
     skillUses: raw.skillUses ?? [0, 0, 0, 0],
     drawMode: raw.drawMode ?? null,
     skillModeActive: raw.skillModeActive ?? raw.skillActivity != null,
+    skillMode: raw.skillMode ?? null,
     skill: raw.skill ?? null,
     skillActivity: raw.skillActivity ?? null,
     gameOverReason: raw.gameOverReason ?? null,
@@ -349,6 +368,7 @@ export function buildPlayerView(snapshot: GameSnapshot, viewer: PlayerIndex): Pl
   skillUses: [...snapshot.skillUses] as PlayerView['skillUses'],
     drawMode: snapshot.drawMode,
     skillModeActive: snapshot.skillMode !== null,
+    skillMode: cloneSkillMode(snapshot.skillMode),
     skill: buildSkillView(snapshot, viewer),
     skillActivity: buildSkillActivity(snapshot, viewer),
     gameOverReason: snapshot.gameOverReason,

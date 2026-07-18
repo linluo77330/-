@@ -152,6 +152,13 @@ describe('normalizePlayerView', () => {
           { rankA: 2, rankB: 3 },
         ],
       },
+      skillMode: {
+        skillId: 'split_tile',
+        step: 'pick_split',
+        sourceTileId: source.id,
+        suit: 'tong',
+        rank: 5,
+      },
       players: [
         { hand: { kind: 'visible', tiles: [source, t('wan', 1)] }, discards: [], melds: [] },
         { hand: { kind: 'hidden', count: 13 }, discards: [], melds: [] },
@@ -162,6 +169,44 @@ describe('normalizePlayerView', () => {
 
     expect(view.skillActivity?.splitOptions).toHaveLength(2);
     expect(view.skillActivity?.sourceTile?.id).toBe(source.id);
+  });
+
+  it('skillMode 可重建缺失 splitOptions 的 skillActivity（旧版云端客户端兼容）', () => {
+    const source = t('tong', 8);
+    const view = normalizePlayerView({
+      viewer: 0,
+      phase: 'discard',
+      currentPlayer: 0,
+      dealer: 0,
+      deckCount: 80,
+      skillModeActive: true,
+      playerCharacters: ['hei_pi_ti_yu_sheng', '', '', ''],
+      skillUses: [0, 0, 0, 0],
+      skillActivity: {
+        player: 0,
+        characterId: 'hei_pi_ti_yu_sheng',
+        characterName: '黑皮体育生',
+        skillId: 'split_tile',
+        skillName: '大力出奇迹',
+        step: 'pick_split',
+      },
+      skillMode: {
+        skillId: 'split_tile',
+        step: 'pick_split',
+        sourceTileId: source.id,
+        suit: 'tong',
+        rank: 8,
+      },
+      players: [
+        { hand: { kind: 'visible', tiles: [source, t('wan', 1)] }, discards: [], melds: [] },
+        { hand: { kind: 'hidden', count: 13 }, discards: [], melds: [] },
+        { hand: { kind: 'hidden', count: 13 }, discards: [], melds: [] },
+        { hand: { kind: 'hidden', count: 13 }, discards: [], melds: [] },
+      ],
+    } as never);
+
+    expect(view.skillActivity?.splitOptions?.length).toBeGreaterThan(0);
+    expect(view.skillActivity?.sourceTile?.rank).toBe(8);
   });
 
   it('保留服务端 skillActivity 的投票确认（联机对抗路伽罗）', () => {

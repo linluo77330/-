@@ -88,12 +88,14 @@ export function buildSplitTileActivity(
 
   if (mode.step === 'pick_split') {
     const sourceTile = snapshot.players[player].hand.find((t) => t.id === mode.sourceTileId);
-    if (!sourceTile) return null;
+    const resolvedSource =
+      sourceTile ??
+      ({ id: mode.sourceTileId, suit: mode.suit, rank: mode.rank } as Tile);
     return {
       ...base,
       step: 'pick_split',
-      sourceTile: { ...sourceTile },
-      splitOptions: getSplitPairs(sourceTile.rank),
+      sourceTile: { ...resolvedSource },
+      splitOptions: getSplitPairs(resolvedSource.rank),
     };
   }
 

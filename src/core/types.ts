@@ -117,6 +117,8 @@ export interface SkillVoteStatus {
 }
 
 export type GameOverReason = 'hu' | 'draw' | 'abort' | 'skill_vote';
+
+export interface WildcardConfig {
   /** 发牌后从牌墙首张翻出的指示牌 */
   indicator: Tile;
   /** 由翻牌决定的赖子牌型 */
@@ -148,7 +150,6 @@ export type SkillActivityStep =
   | 'pick_discard'
   | 'pick_source'
   | 'pick_split'
-  | 'pick_keep'
   | 'pick_keep'
   | 'confirm'
   | 'vote';
@@ -247,6 +248,8 @@ export interface PlayerView {
   drawMode: DrawMode | null;
   /** 是否有技能交互进行中 */
   skillModeActive: boolean;
+  /** 联机：服务端下发的技能步骤详情，供客户端重建 skillActivity */
+  skillMode: SkillMode | null;
   skill: SkillViewState | null;
   /** 有玩家正在发动技能并选择效果时为非 null */
   skillActivity: SkillActivityView | null;
