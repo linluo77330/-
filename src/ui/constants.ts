@@ -1,13 +1,18 @@
-/** 本地联机服务端，需先运行 npm run server */
-export const DEFAULT_WS_URL = 'ws://127.0.0.1:3001';
+/** 本地开发默认地址 */
+const LOCAL_WS_URL = 'ws://127.0.0.1:3001';
+
+/**
+ * 联机 WebSocket 地址。
+ * - 本地开发：ws://127.0.0.1:3001（需 npm run server）
+ * - 云部署：构建时设置 VITE_WS_URL，例如 ws://你的公网IP:3001 或 wss://域名/ws
+ */
+export const DEFAULT_WS_URL = import.meta.env.VITE_WS_URL?.trim() || LOCAL_WS_URL;
 
 /** 已知不支持角色技能协议的旧远程服 */
 export const LEGACY_REMOTE_WS_URL = 'ws://106.54.195.75:3001';
 
-export function isSupportedOnlineServer(url: string): boolean {
-  const trimmed = url.trim();
-  if (!trimmed) return true;
-  if (trimmed.includes('106.54.195.75')) return false;
+/** 预留：可用于检测不兼容的旧版服务器 */
+export function isSupportedOnlineServer(_url: string): boolean {
   return true;
 }
 

@@ -656,6 +656,7 @@ export class MahjongGame {
           tileA: createSkillTile(sourceTile.suit, rankA),
           tileB: createSkillTile(sourceTile.suit, rankB),
         };
+        this.events.emit('skill_pick_open', { player });
         return true;
       }
 
@@ -666,6 +667,7 @@ export class MahjongGame {
         suit: sourceTile.suit as 'tong' | 'tiao',
         rank: sourceTile.rank,
       };
+      this.events.emit('skill_pick_open', { player });
       return true;
     }
 
@@ -688,6 +690,7 @@ export class MahjongGame {
         tileA: createSkillTile(mode.suit, rankA),
         tileB: createSkillTile(mode.suit, rankB),
       };
+      this.events.emit('skill_pick_open', { player });
       return true;
     }
 

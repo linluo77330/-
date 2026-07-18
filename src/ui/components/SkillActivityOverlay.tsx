@@ -179,9 +179,9 @@ export function SkillActivityOverlay({
               </>
             )}
 
-            {activity.step === 'pick_split' && activity.sourceTile && (
+            {activity.step === 'pick_split' && (
               <>
-                {(activity.splitOptions?.length ?? 0) > 0 ? (
+                {(activity.splitOptions?.length ?? 0) > 0 && activity.sourceTile ? (
                   <div className="skill-overlay__split-options">
                     {activity.splitOptions!.map(({ rankA, rankB }) => (
                       <SplitOptionButton

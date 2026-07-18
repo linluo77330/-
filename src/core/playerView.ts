@@ -240,35 +240,33 @@ function playerStateViewToRaw(state: PlayerStateView): GameSnapshot['players'][0
   };
 }
 
-function viewSkillModeFromActivity(view: PlayerView): GameSnapshot['skillMode'] {
-  if (!view.skillModeActive) return null;
-  const activity = view.skillActivity;
-  if (!activity) {
-    return { skillId: 'let_me_draw', step: 'pick_discard' } as GameSnapshot['skillMode'];
-  }
-  return { skillId: activity.skillId, step: activity.step } as GameSnapshot['skillMode'];
-}
-
-/** 联机客户端：与单机 buildPlayerView 一致，重算 skill / skillActivity */
+/** 联机客户端：重算 skill.canActivate；保留服务端下发的 skillActivity（含拆分/投票选项） */
 export function refreshPlayerViewSkills(view: PlayerView): PlayerView {
+  const skillMode =
+    view.skillModeActive && view.skillActivity
+      ? ({ skillId: view.skillActivity.skillId, step: view.skillActivity.step } as GameSnapshot['skillMode'])
+      : null;
+
   const snapshot = {
     phase: view.phase,
     currentPlayer: view.currentPlayer,
     dealer: view.dealer,
     turnNumber: view.turnNumber,
     drawMode: view.drawMode,
-    skillMode: viewSkillModeFromActivity(view),
+    skillMode,
     playerCharacters: view.playerCharacters,
     skillUses: view.skillUses,
     players: view.players.map(playerStateViewToRaw) as GameSnapshot['players'],
   } as GameSnapshot;
 
+  const skillActivity =
+    view.skillActivity ??
+    (view.skillModeActive ? buildSkillActivity(snapshot, view.viewer) : null);
+
   return {
     ...view,
     skill: buildSkillView(snapshot, view.viewer),
-    skillActivity: view.skillModeActive
-      ? buildSkillActivity(snapshot, view.viewer) ?? view.skillActivity
-      : null,
+    skillActivity: view.skillModeActive ? skillActivity : null,
   };
 }
 

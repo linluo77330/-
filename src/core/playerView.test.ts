@@ -127,4 +127,71 @@ describe('normalizePlayerView', () => {
     expect(view.drawMode).toBe('choose');
     expect(view.skill?.canActivate).toBe(true);
   });
+
+  it('保留服务端 skillActivity 的拆分选项（联机黑皮体育生）', () => {
+    const source = t('tong', 5);
+    const view = normalizePlayerView({
+      viewer: 0,
+      phase: 'discard',
+      currentPlayer: 0,
+      dealer: 0,
+      deckCount: 80,
+      skillModeActive: true,
+      playerCharacters: ['hei_pi_ti_yu_sheng', '', '', ''],
+      skillUses: [0, 0, 0, 0],
+      skillActivity: {
+        player: 0,
+        characterId: 'hei_pi_ti_yu_sheng',
+        characterName: '黑皮体育生',
+        skillId: 'split_tile',
+        skillName: '大力出奇迹',
+        step: 'pick_split',
+        sourceTile: source,
+        splitOptions: [
+          { rankA: 1, rankB: 4 },
+          { rankA: 2, rankB: 3 },
+        ],
+      },
+      players: [
+        { hand: { kind: 'visible', tiles: [source, t('wan', 1)] }, discards: [], melds: [] },
+        { hand: { kind: 'hidden', count: 13 }, discards: [], melds: [] },
+        { hand: { kind: 'hidden', count: 13 }, discards: [], melds: [] },
+        { hand: { kind: 'hidden', count: 13 }, discards: [], melds: [] },
+      ],
+    } as never);
+
+    expect(view.skillActivity?.splitOptions).toHaveLength(2);
+    expect(view.skillActivity?.sourceTile?.id).toBe(source.id);
+  });
+
+  it('保留服务端 skillActivity 的投票确认（联机对抗路伽罗）', () => {
+    const view = normalizePlayerView({
+      viewer: 0,
+      phase: 'draw',
+      currentPlayer: 0,
+      dealer: 0,
+      deckCount: 80,
+      drawMode: 'choose',
+      skillModeActive: true,
+      playerCharacters: ['dui_kang_lu_galuo', '', '', ''],
+      skillUses: [0, 0, 0, 0],
+      skillActivity: {
+        player: 0,
+        characterId: 'dui_kang_lu_galuo',
+        characterName: '对抗路伽罗',
+        skillId: 'instant_win_vote',
+        skillName: '一秒四破',
+        step: 'confirm',
+        votePrompt: '发起投票？其余三人全部同意则你自动获胜',
+      },
+      players: [
+        { hand: { kind: 'visible', tiles: [t('wan', 1)] }, discards: [], melds: [] },
+        { hand: { kind: 'hidden', count: 13 }, discards: [], melds: [] },
+        { hand: { kind: 'hidden', count: 13 }, discards: [], melds: [] },
+        { hand: { kind: 'hidden', count: 13 }, discards: [], melds: [] },
+      ],
+    } as never);
+
+    expect(view.skillActivity?.votePrompt).toContain('发起投票');
+  });
 });

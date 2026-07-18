@@ -97,8 +97,11 @@ export function OnlineLobbyScreen({ online, character, onBack }: OnlineLobbyScre
             />
           </label>
           <p className="online-lobby__hint online-lobby__hint--server">
-            联机技能需本机服务端：终端运行 <code>npm run server</code>，地址填{' '}
-            <code>{DEFAULT_WS_URL}</code>（勿使用旧远程 {LEGACY_REMOTE_WS_URL}）
+            联机需同时部署 WebSocket 服务端（<code>npm run server</code>）。
+            当前默认地址：<code>{DEFAULT_WS_URL}</code>
+            {DEFAULT_WS_URL.includes('127.0.0.1') && (
+              <> · 云网页请改为云服务器公网地址，例如 <code>ws://你的IP:3001</code></>
+            )}
           </p>
           <label className="online-lobby__field">
             <span>房间号</span>

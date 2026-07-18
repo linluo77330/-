@@ -88,7 +88,7 @@ export function buildSplitTileActivity(
 
   if (mode.step === 'pick_split') {
     const sourceTile = snapshot.players[player].hand.find((t) => t.id === mode.sourceTileId);
-    if (!sourceTile) return { ...base, step: 'pick_split' };
+    if (!sourceTile) return null;
     return {
       ...base,
       step: 'pick_split',

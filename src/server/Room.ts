@@ -583,6 +583,9 @@ export class Room {
     if (!this.game.resolveSkillPick(params)) {
       throw new Error('技能选择无效');
     }
+    // 掰牌等中间步骤不会触发 phase/摸牌事件，需主动同步客户端
+    this.broadcastGameState();
+    this.scheduleBotActions();
   }
 
   private handleSkillVote(seat: SeatSlot, agree: boolean): void {
