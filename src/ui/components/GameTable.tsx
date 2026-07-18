@@ -45,7 +45,7 @@ function OfflineGameTable({
   character,
   onExit,
 }: Extract<GameTableProps, { mode: 'offline' }>) {
-  const { snapshot, start, discard, respondOption, pass, log, drawnTileId } = gameApi;
+  const { snapshot, start, discard, respondOption, pass, drawnTileId } = gameApi;
   const humanPlayer: PlayerIndex = 0;
   const view = buildPlayerView(snapshot, humanPlayer);
   const seatNames = [...PLAYER_NAMES];
@@ -68,7 +68,6 @@ function OfflineGameTable({
       humanPlayer={humanPlayer}
       seatNames={seatNames}
       drawnTileId={drawnTileId}
-      log={log}
       waitingTiles={waitingTiles}
       onTileClick={handleTileClick}
       onRespond={respondOption}
@@ -92,7 +91,6 @@ function OnlineGameTable({
     playerIndex,
     roomState,
     drawnTileId,
-    log,
     gameAbortWarning,
     discard,
     respondOption,
@@ -124,7 +122,6 @@ function OnlineGameTable({
       humanPlayer={playerIndex}
       seatNames={seatNames}
       drawnTileId={drawnTileId}
-      log={log}
       waitingTiles={waitingTiles}
       onTileClick={handleTileClick}
       onRespond={respondOption}
@@ -153,7 +150,6 @@ interface GameTableLayoutProps {
   humanPlayer: PlayerIndex;
   seatNames: string[];
   drawnTileId: string | null;
-  log: string[];
   waitingTiles: TileType[];
   onTileClick: (tile: TileType) => void;
   onRespond: GameApi['respondOption'];
@@ -172,7 +168,6 @@ function GameTableLayout({
   humanPlayer,
   seatNames,
   drawnTileId,
-  log,
   waitingTiles,
   onTileClick,
   onRespond,
@@ -309,15 +304,6 @@ function GameTableLayout({
         showStart={showStart}
       />
 
-      <aside className="game-log">
-        <h3>对局日志</h3>
-        <ul>
-          {log.length === 0 && <li className="game-log__empty">等待开始...</li>}
-          {log.map((entry, i) => (
-            <li key={`${entry}-${i}`}>{entry}</li>
-          ))}
-        </ul>
-      </aside>
     </div>
   );
 }

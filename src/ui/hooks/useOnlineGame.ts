@@ -1,12 +1,8 @@
-import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import type { PlayerIndex, PlayerView, ResponseOption } from '@/core/types';
 import type { RoomStatePayload, ServerMessage } from '@/shared/protocol';
 
 import { DEFAULT_WS_URL } from '../constants';
-
-function pushLogEntry(setLog: Dispatch<SetStateAction<string[]>>, msg: string) {
-  setLog((prev) => [msg, ...prev].slice(0, 30));
-}
 
 export function useOnlineGame() {
   const wsRef = useRef<WebSocket | null>(null);
@@ -17,7 +13,6 @@ export function useOnlineGame() {
   const [view, setView] = useState<PlayerView | null>(null);
   const [drawnTileId, setDrawnTileId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [log, setLog] = useState<string[]>([]);
   const [gameAbortWarning, setGameAbortWarning] = useState<{
     playerName: string;
     secondsLeft: number;
@@ -39,7 +34,6 @@ export function useOnlineGame() {
       case 'joined':
         setPlayerIndex(msg.playerIndex);
         setError(null);
-        pushLogEntry(setLog, `加入房间 ${msg.roomId}，座位 ${msg.playerIndex}${msg.isHost ? '（房主）' : ''}`);
         break;
       case 'room_state':
         setRoomState(msg.state);
@@ -61,7 +55,6 @@ export function useOnlineGame() {
           playerName: msg.playerName,
           secondsLeft: msg.secondsLeft,
         });
-        pushLogEntry(setLog, `${msg.playerName} 已断开，${msg.secondsLeft} 秒后结束对局`);
         break;
       case 'game_aborted':
         setView(null);
@@ -69,11 +62,9 @@ export function useOnlineGame() {
         setGameAbortWarning(null);
         abortEndsAtRef.current = null;
         setLobbyNotice(msg.reason);
-        pushLogEntry(setLog, msg.reason);
         break;
       case 'error':
         setError(msg.message);
-        pushLogEntry(setLog, `错误：${msg.message}`);
         break;
     }
   }, []);
@@ -88,7 +79,6 @@ export function useOnlineGame() {
       setRoomState(null);
       setPlayerIndex(null);
       setDrawnTileId(null);
-      setLog([]);
       setGameAbortWarning(null);
       setLobbyNotice(null);
       abortEndsAtRef.current = null;
@@ -100,7 +90,6 @@ export function useOnlineGame() {
         setConnected(true);
         setConnecting(false);
         ws.send(JSON.stringify({ type: 'join_room', roomId, name }));
-        pushLogEntry(setLog, `已连接 ${serverUrl}`);
       };
 
       ws.onmessage = (event) => {
@@ -120,7 +109,6 @@ export function useOnlineGame() {
         setConnected(false);
         setConnecting(false);
         wsRef.current = null;
-        pushLogEntry(setLog, '连接已断开');
       };
     },
     [connected, connecting, handleServerMessage],
@@ -202,7 +190,6 @@ export function useOnlineGame() {
     view,
     drawnTileId,
     error,
-    log,
     gameAbortWarning,
     lobbyNotice,
     inGame,

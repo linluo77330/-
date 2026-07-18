@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { MahjongGame } from '@/core/MahjongGame';
 import type { GameEventName, GameSnapshot } from '@/core';
 import type { PlayerIndex, ResponseAction, ResponseOption } from '@/core/types';
-import { tileLabel } from '../utils/tileLabels';
 
 const SYNC_EVENTS: GameEventName[] = [
   'game_start',
@@ -32,16 +31,11 @@ export function useMahjongGame() {
   const game = gameRef.current;
 
   const [snapshot, setSnapshot] = useState<GameSnapshot>(() => game.getSnapshot());
-  const [log, setLog] = useState<string[]>([]);
   const [drawnTileId, setDrawnTileId] = useState<string | null>(null);
 
   const refresh = useCallback(() => {
     setSnapshot(game.getSnapshot());
   }, [game]);
-
-  const pushLog = useCallback((msg: string) => {
-    setLog((prev) => [msg, ...prev].slice(0, 30));
-  }, []);
 
   useEffect(() => {
     const unsubs = [
@@ -51,52 +45,27 @@ export function useMahjongGame() {
           return undefined;
         }),
       ),
-      game.on('wildcard_reveal', (payload) => {
-        pushLog(`翻万能牌：${tileLabel(payload.indicator)}`);
-      }),
       game.on('after_draw', (payload) => {
-        pushLog(`玩家 ${payload.player} 摸了 ${tileLabel(payload.tile)}`);
         if (payload.player === 0) {
           setDrawnTileId(payload.tile.id);
         }
       }),
       game.on('after_discard', (payload) => {
-        pushLog(`玩家 ${payload.player} 打出 ${tileLabel(payload.tile)}`);
         if (payload.player === 0) {
           setDrawnTileId(null);
         }
       }),
-      game.on('after_response', (payload) => {
-        if (payload.won) {
-          pushLog(`玩家 ${payload.player} 胡了！`);
-        } else if (payload.meld) {
-          pushLog(
-            `玩家 ${payload.player} ${payload.meld.type === 'chi' ? '吃' : payload.meld.type === 'pong' ? '碰' : '杠'}`,
-          );
-        }
-      }),
-      game.on('response_level_change', (payload) => {
-        pushLog(`响应轮次：${payload.level}`);
-      }),
-      game.on('game_over', (payload) => {
-        pushLog(
-          payload.winner !== null
-            ? `对局结束：玩家 ${payload.winner} 获胜`
-            : '对局结束：流局',
-        );
-      }),
     ];
     return () => unsubs.forEach((off) => off());
-  }, [game, refresh, pushLog]);
+  }, [game, refresh]);
 
   const start = useCallback(
     (dealer: PlayerIndex = 0) => {
       game.start(dealer);
       setDrawnTileId(null);
       refresh();
-      pushLog('新对局开始');
     },
-    [game, refresh, pushLog],
+    [game, refresh],
   );
 
   const draw = useCallback(() => {
@@ -151,7 +120,6 @@ export function useMahjongGame() {
   return {
     game,
     snapshot,
-    log,
     drawnTileId,
     start,
     draw,

@@ -1,4 +1,5 @@
 import type { Meld, PlayerIndex, PlayerStateView, Tile as TileType, WildcardConfig } from '@/core/types';
+import { useCompactLayout } from '../hooks/useCompactLayout';
 import { resolveHandTiles } from '../utils/handView';
 import { Tile, type TileSize } from './Tile';
 import { TileRow } from './TileRow';
@@ -59,10 +60,15 @@ export function PlayerSeat({
   highlightTileId,
   onTileClick,
 }: PlayerSeatProps) {
+  const { compact, narrow } = useCompactLayout();
   const { tiles: handTiles, faceDown } = resolveHandTiles(state.hand);
   const isSide = position === 'left' || position === 'right';
   const riverCols: 3 | 6 = isSide ? 3 : 6;
   const hiddenCount = state.hand.kind === 'hidden' ? state.hand.count : 0;
+  const humanHandSize = compact ? (narrow ? 'sm' : 'md') : 'lg';
+  const opponentHandSize = compact ? 'xs' : 'sm';
+  const meldSize: TileSize = 'xs';
+  const riverSize: TileSize = 'xs';
 
   return (
     <div className={`player-seat player-seat--${position} ${isActive ? 'player-seat--active' : ''}`}>
@@ -79,7 +85,7 @@ export function PlayerSeat({
           <span className="player-seat__zone-label">鸣牌</span>
           <div className="player-seat__zone-body">
             {state.melds.length > 0 ? (
-              <MeldGroup melds={state.melds} size="xs" />
+              <MeldGroup melds={state.melds} size={meldSize} />
             ) : (
               <span className="player-seat__zone-empty">—</span>
             )}
@@ -92,10 +98,10 @@ export function PlayerSeat({
             {state.discards.length > 0 ? (
               <TileRow
                 tiles={state.discards}
-                size="xs"
+                size={riverSize}
                 grid
                 gridCols={riverCols}
-                maxTiles={isSide ? 12 : 18}
+                maxTiles={isSide ? (compact ? 9 : 12) : compact ? 12 : 18}
               />
             ) : (
               <span className="player-seat__zone-empty">—</span>
@@ -109,7 +115,7 @@ export function PlayerSeat({
             {isHuman && !faceDown ? (
               <TileRow
                 tiles={handTiles}
-                size="lg"
+                size={humanHandSize}
                 onTileClick={onTileClick}
                 spaced
                 wildcard={wildcard}
@@ -119,7 +125,7 @@ export function PlayerSeat({
               <TileRow
                 tiles={handTiles}
                 faceDown={faceDown}
-                size="sm"
+                size={opponentHandSize}
                 handColumns={isSide ? 2 : undefined}
                 spaced
               />

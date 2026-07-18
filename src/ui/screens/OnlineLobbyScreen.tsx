@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { PlayerIndex } from '@/core/types';
 import { DEFAULT_WS_URL } from '../constants';
 import { ScreenShell } from '../components/ScreenShell';
@@ -15,7 +15,7 @@ interface OnlineLobbyScreenProps {
 
 export function OnlineLobbyScreen({ online, character, onBack }: OnlineLobbyScreenProps) {
   const [serverUrl, setServerUrl] = useState(DEFAULT_WS_URL);
-  const [roomId, setRoomId] = useState('room1');
+  const [roomId, setRoomId] = useState('');
   const [name, setName] = useState(character.name);
 
   const {
@@ -42,6 +42,12 @@ export function OnlineLobbyScreen({ online, character, onBack }: OnlineLobbyScre
   const mySeat = playerIndex !== null ? seats[playerIndex] : null;
   const myReady = mySeat?.kind === 'human' && mySeat.ready;
   const emptyCount = seats.filter((s) => s.kind === 'empty').length;
+
+  useEffect(() => {
+    if (!connected) {
+      setRoomId('');
+    }
+  }, [connected]);
 
   const handleConnect = () => {
     const trimmedName = name.trim();
@@ -92,7 +98,7 @@ export function OnlineLobbyScreen({ online, character, onBack }: OnlineLobbyScre
               type="text"
               value={roomId}
               onChange={(e) => setRoomId(e.target.value)}
-              placeholder="room1"
+              placeholder="输入房间号"
             />
           </label>
           <label className="online-lobby__field">
@@ -114,7 +120,6 @@ export function OnlineLobbyScreen({ online, character, onBack }: OnlineLobbyScre
           >
             {connecting ? '连接中…' : '加入房间'}
           </button>
-          <p className="online-lobby__hint">需先在本机运行 npm run server</p>
         </div>
       ) : (
         <div className="online-lobby__room">
