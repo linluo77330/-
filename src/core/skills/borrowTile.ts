@@ -4,9 +4,20 @@ export const JIE_DONG_XI_ZHI_REN_ID = 'jie_dong_xi_zhi_ren';
 export const JIE_DONG_XI_ZHI_REN_NAME = '借东西之人';
 export const BORROW_TILE_SKILL_ID = 'borrow_tile';
 export const BORROW_TILE_MAX_USES = 1;
-export const BORROW_TILE_SKILL_NAME = '（限定技）同学这个借我用一下';
+export const BORROW_TILE_SKILL_NAME = '同学这个借我用一下';
 export const BORROW_TILE_SKILL_DESC =
-  '摸牌结束后，可以选择自己的一张手牌并指定一位玩家，将自己选择的牌和该玩家随机一张牌互换。该技能只能使用一次。';
+  '摸牌结束后，可以选择自己的一张手牌并指定一位玩家，将自己选择的牌和该玩家随机一张牌互换。该技能每回合可以使用一次。';
+
+/** 新回合开始时重置本回合已用次数（每回合限一次） */
+export function resetBorrowTileTurnUsage(
+  skillUses: GameSnapshot['skillUses'],
+  playerCharacters: GameSnapshot['playerCharacters'],
+  player: PlayerIndex,
+): void {
+  if (isJieDongXiZhiRen(playerCharacters[player])) {
+    skillUses[player] = 0;
+  }
+}
 
 export function isJieDongXiZhiRen(characterId: string): boolean {
   return characterId === JIE_DONG_XI_ZHI_REN_ID;

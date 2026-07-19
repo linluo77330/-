@@ -122,9 +122,9 @@ export const JIE_DONG_XI_ZHI_REN: Character = {
   accent: '#5b6eae',
   skill: {
     id: 'borrow_tile',
-    name: '（限定技）同学这个借我用一下',
+    name: '同学这个借我用一下',
     description:
-      '摸牌结束后，可以选择自己的一张手牌并指定一位玩家，将自己选择的牌和该玩家随机一张牌互换。该技能只能使用一次。',
+      '摸牌结束后，可以选择自己的一张手牌并指定一位玩家，将自己选择的牌和该玩家随机一张牌互换。该技能每回合可以使用一次。',
     maxUses: 1,
     limited: true,
   },

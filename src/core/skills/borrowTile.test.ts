@@ -5,6 +5,7 @@ import type { Tile } from '../types.js';
 import {
   BORROW_TILE_SKILL_ID,
   JIE_DONG_XI_ZHI_REN_ID,
+  resetBorrowTileTurnUsage,
 } from './borrowTile.js';
 
 let id = 0;
@@ -74,7 +75,7 @@ describe('borrow tile skill', () => {
     expect(targetView.skillActivity?.previewTiles?.[0]).toMatchObject({ suit: 'wan', rank: 2 });
   });
 
-  it('限定技只能使用一次', () => {
+  it('本回合已使用后无法再次发动', () => {
     const game = new MahjongGame();
     game.start(0, [JIE_DONG_XI_ZHI_REN_ID, '', '', '']);
 
@@ -86,6 +87,28 @@ describe('borrow tile skill', () => {
     internal.players[1].hand = [t('wan', 2)];
 
     expect(game.activateSkill(BORROW_TILE_SKILL_ID)).toBe(false);
+  });
+
+  it('每回合限一次，新回合开始后可再次发动', () => {
+    const game = new MahjongGame();
+    game.start(0, [JIE_DONG_XI_ZHI_REN_ID, '', '', '']);
+
+    const internal = game as unknown as GameInternals;
+    internal.phase = 'discard';
+    internal.currentPlayer = 0;
+    internal.skillUses[0] = 1;
+    internal.players[0].hand = [t('wan', 1)];
+    internal.players[1].hand = [t('wan', 2)];
+
+    expect(game.activateSkill(BORROW_TILE_SKILL_ID)).toBe(false);
+
+    resetBorrowTileTurnUsage(
+      internal.skillUses as GameInternals['skillUses'],
+      [JIE_DONG_XI_ZHI_REN_ID, '', '', ''],
+      0,
+    );
+    internal.phase = 'discard';
+    expect(game.activateSkill(BORROW_TILE_SKILL_ID)).toBe(true);
   });
 
   it('无可用目标时无法发动', () => {

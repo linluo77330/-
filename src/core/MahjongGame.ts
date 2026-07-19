@@ -69,6 +69,7 @@ import {
   BORROW_TILE_SKILL_NAME,
   canUseBorrowTile,
   getBorrowTileTargets,
+  resetBorrowTileTurnUsage,
 } from './skills/borrowTile.js';
 import {
   WEN_QU_DESCENDS_MAX_USES,
@@ -1173,6 +1174,7 @@ export class MahjongGame {
 
   private enterDrawPhase(): void {
     const player = this.currentPlayer;
+    resetBorrowTileTurnUsage(this.skillUses, this.playerCharacters, player);
     const snapshot = this.getSnapshot();
 
     if (
@@ -1335,6 +1337,7 @@ export class MahjongGame {
     this.closeResponseWindow(true);
 
     this.currentPlayer = player;
+    resetBorrowTileTurnUsage(this.skillUses, this.playerCharacters, player);
     this.events.emit('turn_change', { player, turnNumber: this.turnNumber });
 
     // 杠后补牌 → 出牌；吃碰 → 出牌
