@@ -100,6 +100,9 @@ function getDiscardPhaseActionLabel(view: PlayerView, seatIndex: PlayerIndex): s
 
 function getDrawPhaseActionLabel(view: PlayerView, seatIndex: PlayerIndex): string {
   if (view.skillActivity?.player === seatIndex) {
+    if (view.skillActivity.step === 'confirm') {
+      return '请确认技能';
+    }
     return '请选择技能效果';
   }
   return '请摸牌';

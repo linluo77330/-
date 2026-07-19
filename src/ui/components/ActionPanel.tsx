@@ -39,6 +39,9 @@ function getActionHint(
   const isMyTurn = currentPlayer === humanPlayer;
 
   if (skillActivity?.player === humanPlayer) {
+    if (skillActivity.step === 'confirm') {
+      return '在上方状态栏确认或取消';
+    }
     return '请在牌桌中央完成技能选择';
   }
   if (skillActivity?.step === 'vote' && skillActivity.canVote) {

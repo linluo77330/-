@@ -465,6 +465,10 @@ export class MahjongGame {
     }
 
     if (this.skillMode.skillId === CANT_READ_SKILL_ID) {
+      if (params.skip) {
+        this.skillMode = null;
+        return true;
+      }
       if (!params.confirm) throw new Error('请确认发动技能');
       return this.executeCantReadSkill();
     }
@@ -472,6 +476,10 @@ export class MahjongGame {
     if (this.skillMode.skillId === INSTANT_WIN_VOTE_SKILL_ID) {
       if (this.skillMode.step !== 'confirm') {
         throw new Error('当前未在确认投票');
+      }
+      if (params.skip) {
+        this.skillMode = null;
+        return true;
       }
       if (!params.confirm) throw new Error('请确认发起投票');
       return this.startInstantWinVote();

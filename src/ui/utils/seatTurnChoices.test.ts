@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildDrawPhaseChoices } from './seatTurnChoices';
+import { buildDrawPhaseChoices, buildSkillConfirmChoices } from './seatTurnChoices';
 import type { PlayerView } from '@/core/types';
 
 function baseView(overrides: Partial<PlayerView> = {}): PlayerView {
@@ -55,5 +55,41 @@ describe('buildDrawPhaseChoices', () => {
 
     expect(choices).toHaveLength(1);
     expect(choices![0].id).toBe('draw-wall');
+  });
+});
+
+describe('buildSkillConfirmChoices', () => {
+  it('returns confirm and cancel on mobile skill confirm', () => {
+    const onSkillPick = vi.fn();
+    const choices = buildSkillConfirmChoices(
+      {
+        ...baseView(),
+        skillActivity: {
+          player: 0,
+          characterId: 'jue_wang_de_wen_mang',
+          characterName: '绝望的文盲',
+          skillId: 'cant_read',
+          skillName: '我看不懂啊',
+          step: 'confirm',
+          previewTiles: [],
+          drawPreviewCount: 3,
+        },
+      } as PlayerView,
+      0,
+      true,
+      onSkillPick,
+    );
+
+    expect(choices).toHaveLength(2);
+    choices![0].onSelect();
+    choices![1].onSelect();
+    expect(onSkillPick).toHaveBeenNthCalledWith(1, { confirm: true });
+    expect(onSkillPick).toHaveBeenNthCalledWith(2, { skip: true });
+  });
+
+  it('returns undefined on desktop layout', () => {
+    expect(
+      buildSkillConfirmChoices(baseView(), 0, false, vi.fn()),
+    ).toBeUndefined();
   });
 });

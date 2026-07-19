@@ -5,7 +5,12 @@ import { wildcardDescription } from '@/core/wildcard';
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { getSkillUsesRemaining, type Character } from '../data/characters';
 import { getSeatTurnIndicator, createDiscardSegment } from '../utils/turnIndicators';
-import { buildDrawPhaseChoices } from '../utils/seatTurnChoices';
+import {
+  buildDrawPhaseChoices,
+  buildSkillConfirmChoices,
+  shouldUseInlineMobileSkillConfirm,
+} from '../utils/seatTurnChoices';
+import { useCompactLayout } from '../hooks/useCompactLayout';
 import type { OnlineGameApi } from '../hooks/useOnlineGame';
 import type { useMahjongGame } from '../hooks/useMahjongGame';
 import { useGameLog } from '../hooks/useGameLog';
@@ -22,6 +27,7 @@ import {
   type CharacterSkillInfoTarget,
 } from './CharacterSkillInfoOverlay';
 import { Tile } from './Tile';
+import { MiniTile } from './MiniTile';
 
 type GameApi = ReturnType<typeof useMahjongGame>;
 
@@ -235,6 +241,8 @@ function GameTableLayout({
   onSkillVote,
   onConcealedKong,
 }: GameTableLayoutProps) {
+  const { compact, landscapeMobile } = useCompactLayout();
+  const mobileLayout = compact || landscapeMobile;
   const [skillInfoTarget, setSkillInfoTarget] = useState<CharacterSkillInfoTarget | null>(null);
   const [selectedDiscardTileId, setSelectedDiscardTileId] = useState<string | null>(null);
   const [discardSegment, setDiscardSegment] = useState<import('../utils/turnIndicators').DiscardDisplaySegment | null>(null);
@@ -301,6 +309,22 @@ function GameTableLayout({
       : null;
 
   const humanDrawChoices = buildDrawPhaseChoices(view, humanPlayer, onDrawWall, onActivateSkill);
+  const humanSkillConfirmChoices = buildSkillConfirmChoices(
+    view,
+    humanPlayer,
+    mobileLayout,
+    onSkillPick,
+  );
+  const humanTurnChoices = humanSkillConfirmChoices ?? humanDrawChoices;
+  const inlineMobileSkillConfirm = shouldUseInlineMobileSkillConfirm(
+    view,
+    humanPlayer,
+    mobileLayout,
+  );
+  const inlineSkillActivity =
+    inlineMobileSkillConfirm && view.skillActivity?.player === humanPlayer
+      ? view.skillActivity
+      : null;
 
   const showCharacterSkillInfo = (target: CharacterSkillInfoTarget) => {
     if (view.skillActivity) return;
@@ -470,7 +494,7 @@ function GameTableLayout({
                   ? () => onActivateSkill(view.skill!.skillId)
                   : undefined
               }
-              turnChoices={index === humanPlayer ? humanDrawChoices : undefined}
+              turnChoices={index === humanPlayer ? humanTurnChoices : undefined}
             />
           ))}
 
@@ -489,16 +513,31 @@ function GameTableLayout({
                 {centerTurnLabel}
               </div>
               <div
-                className={`center-info__last ${view.phase === 'response' ? 'center-info__last--active' : ''}`}
+                className={`center-info__last ${view.phase === 'response' ? 'center-info__last--active' : ''} ${inlineSkillActivity ? 'center-info__last--skill-preview' : ''}`}
               >
-                {view.phase === 'response' && view.lastDiscard ? (
+                {inlineSkillActivity && (inlineSkillActivity.previewTiles?.length ?? 0) > 0 ? (
+                  <div className="center-info__skill-preview">
+                    <span className="center-info__skill-preview-label">
+                      {inlineSkillActivity.drawPreviewCount !== undefined
+                        ? `将弃 ${inlineSkillActivity.drawPreviewCount} 张`
+                        : '预览'}
+                    </span>
+                    <div className="center-info__skill-preview-tiles">
+                      {inlineSkillActivity.previewTiles!.map((tile) => (
+                        <MiniTile key={tile.id} tile={tile} size={22} />
+                      ))}
+                    </div>
+                  </div>
+                ) : view.phase === 'response' && view.lastDiscard ? (
                   <Tile tile={view.lastDiscard.tile} size="md" />
                 ) : null}
               </div>
             </div>
           </div>
 
-          {view.skillModeActive && view.skillActivity && (
+          {view.skillModeActive &&
+            view.skillActivity &&
+            !(inlineMobileSkillConfirm && view.skillActivity.player === humanPlayer) && (
             <SkillActivityOverlay
               activity={view.skillActivity}
               viewer={humanPlayer}
