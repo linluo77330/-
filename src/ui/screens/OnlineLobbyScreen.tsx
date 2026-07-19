@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import type { PlayerIndex } from '@/core/types';
+import { hasDuplicateCharacters, getDuplicateCharacterIds } from '@/shared/lobbyRules';
 import { DEFAULT_WS_URL } from '../constants';
 import { ScreenShell } from '../components/ScreenShell';
-import type { Character } from '../data/characters';
+import { getCharacterById, type Character } from '../data/characters';
 import type { OnlineGameApi } from '../hooks/useOnlineGame';
 
 const SEAT_LABELS = ['东（0 号）', '南（1 号）', '西（2 号）', '北（3 号）'];
@@ -39,7 +40,9 @@ export function OnlineLobbyScreen({ online, character, onBack }: OnlineLobbyScre
   const occupiedCount = seats.filter((s) => s.kind !== 'empty').length;
   const humanSeats = seats.filter((s) => s.kind === 'human');
   const allHumansReady = humanSeats.length > 0 && humanSeats.every((s) => s.ready && s.connected);
-  const canStart = occupiedCount >= 4 && allHumansReady;
+  const duplicateCharacterIds = getDuplicateCharacterIds(seats);
+  const hasDuplicateChars = hasDuplicateCharacters(seats);
+  const canStart = occupiedCount >= 4 && allHumansReady && !hasDuplicateChars;
   const mySeat = playerIndex !== null ? seats[playerIndex] : null;
   const myReady = mySeat?.kind === 'human' && mySeat.ready;
   const emptyCount = seats.filter((s) => s.kind === 'empty').length;
@@ -147,6 +150,13 @@ export function OnlineLobbyScreen({ online, character, onBack }: OnlineLobbyScre
               const isBot = kind === 'bot';
               const isHuman = kind === 'human';
               const isEmpty = kind === 'empty';
+              const characterName = seat?.characterId
+                ? getCharacterById(seat.characterId)?.name ?? '未知角色'
+                : null;
+              const isDuplicateChar =
+                isHuman &&
+                !!seat?.characterId &&
+                duplicateCharacterIds.includes(seat.characterId);
 
               return (
                 <div
@@ -156,6 +166,7 @@ export function OnlineLobbyScreen({ online, character, onBack }: OnlineLobbyScre
                     !isEmpty ? 'online-lobby__seat--filled' : '',
                     isBot ? 'online-lobby__seat--bot' : '',
                     seat?.ready ? 'online-lobby__seat--ready' : '',
+                    isDuplicateChar ? 'online-lobby__seat--duplicate' : '',
                   ]
                     .filter(Boolean)
                     .join(' ')}
@@ -164,8 +175,15 @@ export function OnlineLobbyScreen({ online, character, onBack }: OnlineLobbyScre
                   <span className="online-lobby__seat-name">
                     {isEmpty ? '空位' : seat!.name}
                     {isBot && ' 🤖'}
-                    {roomState?.hostPlayerIndex === i && isHuman && ' · 房主'}
+                    {roomState?.hostPlayerIndex === i && isHuman && (
+                      <span className="online-lobby__seat-host"> · 房主</span>
+                    )}
                   </span>
+                  {!isEmpty && (
+                    <span className="online-lobby__seat-character">
+                      {characterName ? `角色：${characterName}` : isBot ? '角色：—' : '角色：未选择'}
+                    </span>
+                  )}
                   <span className="online-lobby__seat-status">
                     {isEmpty && '—'}
                     {isBot && '机器人'}
@@ -225,6 +243,7 @@ export function OnlineLobbyScreen({ online, character, onBack }: OnlineLobbyScre
           <p className="online-lobby__hint">
             玩家 + 机器人共 4 人即可开局（当前 {occupiedCount}/4）
             {humanSeats.length > 0 && !allHumansReady && ' · 等待所有玩家准备'}
+            {hasDuplicateChars && ' · 存在重复角色，无法开始'}
           </p>
         </div>
       )}

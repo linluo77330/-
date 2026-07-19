@@ -1,29 +1,37 @@
 import { useEffect, useState } from 'react';
 
-const COMPACT_QUERY = '(max-width: 768px)';
-const NARROW_QUERY = '(max-width: 480px)';
+/** 竖屏手机：紧凑牌桌 */
+const PORTRAIT_COMPACT_QUERY = '(max-width: 768px) and (orientation: portrait)';
+const PORTRAIT_NARROW_QUERY = '(max-width: 480px) and (orientation: portrait)';
+/** 横屏手机 / 矮屏：接近桌面比例 */
+const LANDSCAPE_MOBILE_QUERY = '(orientation: landscape) and (max-height: 520px)';
 
 export function useCompactLayout() {
   const [compact, setCompact] = useState(false);
   const [narrow, setNarrow] = useState(false);
+  const [landscapeMobile, setLandscapeMobile] = useState(false);
 
   useEffect(() => {
-    const compactMq = window.matchMedia(COMPACT_QUERY);
-    const narrowMq = window.matchMedia(NARROW_QUERY);
+    const portraitCompactMq = window.matchMedia(PORTRAIT_COMPACT_QUERY);
+    const portraitNarrowMq = window.matchMedia(PORTRAIT_NARROW_QUERY);
+    const landscapeMq = window.matchMedia(LANDSCAPE_MOBILE_QUERY);
 
     const sync = () => {
-      setCompact(compactMq.matches);
-      setNarrow(narrowMq.matches);
+      setCompact(portraitCompactMq.matches);
+      setNarrow(portraitNarrowMq.matches);
+      setLandscapeMobile(landscapeMq.matches);
     };
 
     sync();
-    compactMq.addEventListener('change', sync);
-    narrowMq.addEventListener('change', sync);
+    portraitCompactMq.addEventListener('change', sync);
+    portraitNarrowMq.addEventListener('change', sync);
+    landscapeMq.addEventListener('change', sync);
     return () => {
-      compactMq.removeEventListener('change', sync);
-      narrowMq.removeEventListener('change', sync);
+      portraitCompactMq.removeEventListener('change', sync);
+      portraitNarrowMq.removeEventListener('change', sync);
+      landscapeMq.removeEventListener('change', sync);
     };
   }, []);
 
-  return { compact, narrow };
+  return { compact, narrow, landscapeMobile };
 }

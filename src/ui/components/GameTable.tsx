@@ -2,8 +2,9 @@ import { buildPlayerView } from '@/core/playerView';
 import type { PlayerIndex, Tile as TileType } from '@/core/types';
 import { getWinHandGroups } from '@/core/winDecompose';
 import { wildcardDescription } from '@/core/wildcard';
-import { useMemo, useState, useEffect } from 'react';
+import { useMemo, useState, useEffect, useRef } from 'react';
 import { getSkillUsesRemaining, type Character } from '../data/characters';
+import { getSeatTurnIndicator, createDiscardSegment } from '../utils/turnIndicators';
 import type { OnlineGameApi } from '../hooks/useOnlineGame';
 import type { useMahjongGame } from '../hooks/useMahjongGame';
 import { useGameLog } from '../hooks/useGameLog';
@@ -12,6 +13,7 @@ import { tileLabel, PLAYER_NAMES } from '../utils/tileLabels';
 import type { GameLogEntry } from '@/core/gameLog';
 import { ActionPanel } from './ActionPanel';
 import { GameLogPanel } from './GameLogPanel';
+import { LandscapeHint } from './LandscapeHint';
 import { PlayerSeat } from './PlayerSeat';
 import { SkillActivityOverlay } from './SkillActivityOverlay';
 import {
@@ -84,12 +86,6 @@ function OfflineGameTable({
   const seatNames = [...PLAYER_NAMES];
   const gameLog = useGameLog(game, view.phase !== 'idle');
 
-  const handleTileClick = (tile: TileType) => {
-    if (view.phase !== 'discard' || view.currentPlayer !== humanPlayer) return;
-    if (view.skillActivity?.player === humanPlayer) return;
-    discard(tile.id);
-  };
-
   return (
     <GameTableLayout
       view={view}
@@ -97,7 +93,7 @@ function OfflineGameTable({
       seatNames={seatNames}
       drawnTileId={drawnTileId}
       gameLog={gameLog}
-      onTileClick={handleTileClick}
+      onDiscard={discard}
       onRespond={respondOption}
       onPass={() => pass(humanPlayer)}
       onStart={() =>
@@ -149,12 +145,6 @@ function OnlineGameTable({
   const seatNames =
     roomState?.seats.map((s) => s.name || PLAYER_NAMES[s.playerIndex]) ?? [...PLAYER_NAMES];
 
-  const handleTileClick = (tile: TileType) => {
-    if (view.phase !== 'discard' || view.currentPlayer !== humanPlayer) return;
-    if (view.skillActivity?.player === humanPlayer) return;
-    discard(tile.id);
-  };
-
   return (
     <GameTableLayout
       view={view}
@@ -162,7 +152,7 @@ function OnlineGameTable({
       seatNames={seatNames}
       drawnTileId={drawnTileId}
       gameLog={gameLog}
-      onTileClick={handleTileClick}
+      onDiscard={discard}
       onRespond={respondOption}
       onPass={pass}
       character={character}
@@ -201,7 +191,7 @@ interface GameTableLayoutProps {
   seatNames: string[];
   drawnTileId: string | null;
   gameLog: GameLogEntry[];
-  onTileClick: (tile: TileType) => void;
+  onDiscard: (tileId: string) => void;
   onRespond: GameApi['respondOption'];
   onPass: () => void;
   onStart?: () => void;
@@ -226,7 +216,7 @@ function GameTableLayout({
   seatNames,
   drawnTileId,
   gameLog,
-  onTileClick,
+  onDiscard,
   onRespond,
   onPass,
   onStart,
@@ -245,12 +235,69 @@ function GameTableLayout({
   onConcealedKong,
 }: GameTableLayoutProps) {
   const [skillInfoTarget, setSkillInfoTarget] = useState<CharacterSkillInfoTarget | null>(null);
+  const [selectedDiscardTileId, setSelectedDiscardTileId] = useState<string | null>(null);
+  const [discardSegment, setDiscardSegment] = useState<import('../utils/turnIndicators').DiscardDisplaySegment | null>(null);
+  const humanDiscardCountRef = useRef(0);
+
+  const canSelectDiscard =
+    view.phase === 'discard' &&
+    view.currentPlayer === humanPlayer &&
+    view.skillActivity?.player !== humanPlayer;
 
   useEffect(() => {
     if (view.skillActivity) {
       setSkillInfoTarget(null);
     }
   }, [view.skillActivity]);
+
+  useEffect(() => {
+    setSelectedDiscardTileId(null);
+  }, [view.phase, view.currentPlayer, view.turnNumber, view.skillActivity?.skillId, view.skillActivity?.step]);
+
+  useEffect(() => {
+    if (view.phase === 'idle' || view.phase === 'dealing') {
+      setDiscardSegment(null);
+      humanDiscardCountRef.current = view.players[humanPlayer].discards.length;
+    }
+  }, [view.phase, humanPlayer, view.players]);
+
+  useEffect(() => {
+    const humanDiscards = view.players[humanPlayer].discards;
+    const newCount = humanDiscards.length;
+
+    if (newCount > humanDiscardCountRef.current && view.lastDiscard?.from === humanPlayer) {
+      const next = createDiscardSegment(view, humanPlayer);
+      if (next) setDiscardSegment(next);
+    }
+
+    humanDiscardCountRef.current = newCount;
+  }, [
+    view.players[0].discards.length,
+    view.players[1].discards.length,
+    view.players[2].discards.length,
+    view.players[3].discards.length,
+    view.lastDiscard?.from,
+    view.lastDiscard?.tile.id,
+    humanPlayer,
+    view,
+  ]);
+
+  const handleTileSelect = (tile: TileType) => {
+    if (!canSelectDiscard) return;
+    setSelectedDiscardTileId((prev) => (prev === tile.id ? null : tile.id));
+  };
+
+  const handleConfirmDiscard = () => {
+    if (!selectedDiscardTileId || !canSelectDiscard) return;
+    onDiscard(selectedDiscardTileId);
+    setSelectedDiscardTileId(null);
+  };
+
+  const humanHand = getVisibleHand(view.players[humanPlayer]) ?? [];
+  const selectedDiscardTile =
+    selectedDiscardTileId !== null
+      ? humanHand.find((tile) => tile.id === selectedDiscardTileId) ?? null
+      : null;
 
   const showCharacterSkillInfo = (target: CharacterSkillInfoTarget) => {
     if (view.skillActivity) return;
@@ -286,10 +333,15 @@ function GameTableLayout({
           : view.winInfo
             ? `胡牌：${seatNames[view.winner] ?? PLAYER_NAMES[view.winner]}`
             : `获胜：${seatNames[view.winner] ?? PLAYER_NAMES[view.winner]}`
-      : `当前：${seatNames[view.currentPlayer] ?? PLAYER_NAMES[view.currentPlayer]}`;
+      : view.phase === 'response' && view.lastDiscard
+        ? `${seatNames[view.lastDiscard.from] ?? PLAYER_NAMES[view.lastDiscard.from]} 出牌 · 响应阶段`
+        : view.phase === 'draw' || view.phase === 'discard'
+          ? `轮到 ${seatNames[view.currentPlayer] ?? PLAYER_NAMES[view.currentPlayer]}`
+          : `当前：${seatNames[view.currentPlayer] ?? PLAYER_NAMES[view.currentPlayer]}`;
 
   return (
     <div className="game-layout">
+      <LandscapeHint />
       <header className="game-header">
         <div className="game-header__row">
           {headerCharacter && (
@@ -359,6 +411,10 @@ function GameTableLayout({
               name={seatNames[index] ?? PLAYER_NAMES[index]}
               characterId={view.playerCharacters[index]}
               hasBlackHand={view.blackHandTarget === index}
+              turnIndicator={getSeatTurnIndicator(view, index, seatNames, discardSegment, humanPlayer)}
+              onRespond={index === humanPlayer ? onRespond : undefined}
+              onPass={index === humanPlayer ? onPass : undefined}
+              showResponseActions={index === humanPlayer && view.phase === 'response'}
               onCharacterAvatarClick={
                 view.playerCharacters[index]
                   ? () =>
@@ -383,7 +439,21 @@ function GameTableLayout({
                     : null
               }
               winHandDisplay={getSeatWinHandDisplay(index)}
-              onTileClick={index === humanPlayer ? onTileClick : undefined}
+              onTileClick={index === humanPlayer ? handleTileSelect : undefined}
+              selectedDiscardTileId={
+                index === humanPlayer && canSelectDiscard ? selectedDiscardTileId : null
+              }
+              selectedDiscardTile={
+                index === humanPlayer && canSelectDiscard ? selectedDiscardTile : null
+              }
+              onConfirmDiscard={
+                index === humanPlayer && canSelectDiscard ? handleConfirmDiscard : undefined
+              }
+              onClearDiscardSelection={
+                index === humanPlayer && canSelectDiscard
+                  ? () => setSelectedDiscardTileId(null)
+                  : undefined
+              }
             />
           ))}
 
@@ -398,7 +468,14 @@ function GameTableLayout({
                   </div>
                 </div>
               )}
-              <div className="center-info__turn">{centerTurnLabel}</div>
+              <div className={`center-info__turn ${view.phase === 'response' ? 'center-info__turn--response' : ''}`}>
+                {centerTurnLabel}
+              </div>
+              {view.phase === 'response' && view.lastDiscard && (
+                <div className="center-info__last">
+                  <Tile tile={view.lastDiscard.tile} size="md" />
+                </div>
+              )}
             </div>
           </div>
 

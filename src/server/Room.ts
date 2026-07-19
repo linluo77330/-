@@ -26,6 +26,7 @@ import {
   type SeatInfo,
   type SeatKind,
 } from '../shared/protocol.js';
+import { hasDuplicateCharacters } from '../shared/lobbyRules.js';
 
 const AUTO_DRAW_MS = 400;
 const PLAYER_COUNT = 4;
@@ -297,6 +298,9 @@ export class Room {
     }
     if (!this.allHumansReady()) {
       throw new Error('所有玩家尚未准备');
+    }
+    if (hasDuplicateCharacters(this.seats)) {
+      throw new Error('存在重复角色，请更换角色后再开始');
     }
 
     this.startGame();

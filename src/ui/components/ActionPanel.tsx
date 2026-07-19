@@ -76,15 +76,15 @@ function getActionHint(
       return '请选择借牌目标';
     }
     if (skill?.canActivate && canConcealedKong) {
-      return '可暗杠、发动技能或点击手牌出牌';
+      return '可暗杠、发动技能；选手牌后在上方确认出牌';
     }
     if (skill?.canActivate) {
-      return '可发动技能或点击手牌出牌';
+      return '可发动技能；选手牌后在上方确认出牌';
     }
     if (canConcealedKong) {
-      return '可暗杠或点击手牌出牌';
+      return '可暗杠；选手牌后在上方确认出牌';
     }
-    return '点击手牌出牌';
+    return '点击手牌选中，在上方确认出牌';
   }
 
   return null;
@@ -169,6 +169,7 @@ export function ActionPanel({
             ))}
           </div>
         )}
+
       </div>
     </div>
   );

@@ -1,8 +1,10 @@
-import type { Meld, PlayerIndex, PlayerStateView, Tile as TileType, WildcardConfig } from '@/core/types';
+import type { Meld, PlayerIndex, PlayerStateView, ResponseOption, Tile as TileType, WildcardConfig } from '@/core/types';
 import type { WinHandDisplay } from '@/core/winDecompose';
 import { useCompactLayout } from '../hooks/useCompactLayout';
+import type { SeatTurnIndicator } from '../utils/turnIndicators';
 import { resolveHandTiles } from '../utils/handView';
 import { PlayerCharacterAvatar } from './PlayerCharacterAvatar';
+import { SeatTurnBanner } from './SeatTurnBanner';
 import { Tile, type TileSize } from './Tile';
 import { TileRow } from './TileRow';
 
@@ -52,8 +54,16 @@ interface PlayerSeatProps {
   onCharacterAvatarClick?: () => void;
   wildcard: WildcardConfig | null;
   highlightTileId?: string | null;
+  selectedDiscardTileId?: string | null;
   winHandDisplay?: WinHandDisplay | null;
   onTileClick?: (tile: TileType) => void;
+  turnIndicator?: SeatTurnIndicator | null;
+  onRespond?: (option: ResponseOption) => void;
+  onPass?: () => void;
+  showResponseActions?: boolean;
+  selectedDiscardTile?: TileType | null;
+  onConfirmDiscard?: () => void;
+  onClearDiscardSelection?: () => void;
 }
 
 export function PlayerSeat({
@@ -69,20 +79,28 @@ export function PlayerSeat({
   onCharacterAvatarClick,
   wildcard,
   highlightTileId,
+  selectedDiscardTileId = null,
   winHandDisplay,
   onTileClick,
+  turnIndicator,
+  onRespond,
+  onPass,
+  showResponseActions = false,
+  selectedDiscardTile = null,
+  onConfirmDiscard,
+  onClearDiscardSelection,
 }: PlayerSeatProps) {
-  const { compact, narrow } = useCompactLayout();
+  const { compact, narrow, landscapeMobile } = useCompactLayout();
   const { tiles: handTiles, faceDown } = resolveHandTiles(state.hand);
   const isSide = position === 'left' || position === 'right';
   const riverCols: 3 | 6 = isSide ? 3 : 6;
   const hiddenCount = state.hand.kind === 'hidden' ? state.hand.count : 0;
-  const humanHandSize = compact ? (narrow ? 'sm' : 'md') : 'lg';
-  const opponentHandSize = compact ? 'xs' : 'sm';
+  const humanHandSize = landscapeMobile ? 'md' : compact ? (narrow ? 'sm' : 'md') : 'lg';
+  const opponentHandSize = landscapeMobile ? 'sm' : compact ? 'xs' : 'sm';
   const meldSize: TileSize = 'xs';
-  const riverSize: TileSize = compact ? 'sm' : 'xs';
-  const useRiverScroll = compact;
-  const sideHandColumns = isSide && !compact ? 2 : undefined;
+  const riverSize: TileSize = landscapeMobile ? 'xs' : compact ? 'sm' : 'xs';
+  const useRiverScroll = compact && !landscapeMobile;
+  const sideHandColumns = isSide && (!compact || landscapeMobile) ? 2 : undefined;
   return (
     <div
       className={`player-seat player-seat--${position} ${isActive ? 'player-seat--active' : ''} ${isWinner ? 'player-seat--winner' : ''}`}
@@ -102,6 +120,19 @@ export function PlayerSeat({
           <span className="player-seat__count">{hiddenCount} 张</span>
         )}
       </div>
+
+      {turnIndicator && (
+        <SeatTurnBanner
+          indicator={turnIndicator}
+          position={position}
+          onRespond={onRespond}
+          onPass={onPass}
+          showResponseActions={showResponseActions}
+          selectedDiscardTile={selectedDiscardTile}
+          onConfirmDiscard={onConfirmDiscard}
+          onClearDiscardSelection={onClearDiscardSelection}
+        />
+      )}
 
       <div className="player-seat__zones">
         <div className="player-seat__zone player-seat__zone--melds">
@@ -142,11 +173,12 @@ export function PlayerSeat({
                 size={isHuman || winHandDisplay ? humanHandSize : opponentHandSize}
                 onTileClick={isHuman ? onTileClick : undefined}
                 spaced
-                handRows={isHuman && compact ? 2 : undefined}
-                handColumns={!isHuman && isSide && !compact && !winHandDisplay ? sideHandColumns : undefined}
-                scrollHorizontal={!isHuman && compact && isSide}
+                handRows={isHuman && compact && !landscapeMobile ? 2 : undefined}
+                handColumns={!isHuman && isSide && (!compact || landscapeMobile) && !winHandDisplay ? sideHandColumns : undefined}
+                scrollHorizontal={!isHuman && compact && isSide && !landscapeMobile}
                 wildcard={wildcard}
                 highlightTileId={highlightTileId}
+                selectedTileId={selectedDiscardTileId}
                 winHandDisplay={winHandDisplay}
               />
             ) : (
@@ -155,7 +187,7 @@ export function PlayerSeat({
                 faceDown={faceDown}
                 size={opponentHandSize}
                 handColumns={sideHandColumns}
-                scrollHorizontal={compact && isSide}
+                scrollHorizontal={compact && isSide && !landscapeMobile}
                 spaced
               />
             )}

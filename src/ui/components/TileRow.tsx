@@ -17,6 +17,7 @@ interface TileRowProps {
   scrollHorizontal?: boolean;
   wildcard?: WildcardConfig | null;
   highlightTileId?: string | null;
+  selectedTileId?: string | null;
   winHandDisplay?: WinHandDisplay | null;
 }
 
@@ -42,6 +43,7 @@ export function TileRow({
   scrollHorizontal = false,
   wildcard,
   highlightTileId,
+  selectedTileId = null,
   winHandDisplay,
 }: TileRowProps) {
   const visible = maxTiles && !scrollHorizontal ? tiles.slice(-maxTiles) : tiles;
@@ -69,6 +71,7 @@ export function TileRow({
       size={size}
       isWildcard={!faceDown && wildcard ? isWildcardTile(tile, wildcard) : false}
       isDrawn={highlightTileId === tile.id}
+      selected={selectedTileId === tile.id}
       onClick={onTileClick ? () => onTileClick(tile) : undefined}
     />
   );
