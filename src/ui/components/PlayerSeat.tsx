@@ -88,6 +88,7 @@ export function PlayerSeat({
 
   const humanHandSize: TileSize = landscapeMobile ? 'sm' : compact ? 'md' : 'lg';
   const humanRiverSize = riverSizeForHand(humanHandSize);
+  const mobileHandLayout = compact || landscapeMobile;
   const overlayTileSize: TileSize = 'sm';
 
   const [zoneOverlay, setZoneOverlay] = useState<'melds' | 'river' | null>(null);
@@ -96,7 +97,7 @@ export function PlayerSeat({
 
   return (
     <div
-      className={`player-seat player-seat--${position} ${isHuman ? 'player-seat--human' : ''} ${isActive ? 'player-seat--active' : ''} ${isWinner ? 'player-seat--winner' : ''}`}
+      className={`player-seat player-seat--${position} ${isHuman ? 'player-seat--human' : ''} ${isHuman && mobileHandLayout ? 'player-seat--mobile-hand-layout' : ''} ${isActive ? 'player-seat--active' : ''} ${isWinner ? 'player-seat--winner' : ''}`}
     >
       <div className="player-seat__header">
         {characterId && (
@@ -148,7 +149,13 @@ export function PlayerSeat({
               <span className="player-seat__river-label">河牌</span>
               <div className="player-seat__river-body">
                 {state.discards.length > 0 ? (
-                  <TileRow tiles={state.discards} size={humanRiverSize} spaced wrap />
+                  <TileRow
+                    tiles={state.discards}
+                    size={humanRiverSize}
+                    spaced
+                    wrap={!mobileHandLayout}
+                    scrollHorizontal={mobileHandLayout}
+                  />
                 ) : (
                   <span className="player-seat__river-empty">—</span>
                 )}

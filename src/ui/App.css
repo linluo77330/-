@@ -1592,6 +1592,42 @@ body {
   gap: 7px;
 }
 
+/* 手机：自己的手牌可换行、河牌容器内横滑（固定容器尺寸，桌面不受影响） */
+.player-seat--mobile-hand-layout .player-seat__hand-column {
+  overflow: visible;
+}
+
+.player-seat--mobile-hand-layout.player-seat--bottom .player-seat__play-row {
+  align-items: flex-start;
+  min-height: auto;
+}
+
+.player-seat--mobile-hand-layout .player-seat__hand-wrap--human .tile-row {
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.player-seat--mobile-hand-layout .player-seat__river-strip {
+  align-items: center;
+}
+
+.player-seat--mobile-hand-layout .player-seat__river-body {
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.player-seat--mobile-hand-layout .player-seat__river-body .tile-row {
+  flex-wrap: nowrap;
+  justify-content: flex-start;
+}
+
+.player-seat--mobile-hand-layout .player-seat__river-body .tile-row--scroll-x {
+  overflow-x: visible;
+  max-width: none;
+}
+
 .player-seat--top .player-seat__play-row,
 .player-seat--bottom .player-seat__play-row {
   flex-direction: row;
