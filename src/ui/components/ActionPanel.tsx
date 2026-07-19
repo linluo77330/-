@@ -14,7 +14,6 @@ interface ActionPanelProps {
   onStart?: () => void;
   onRespond: (option: ResponseOption) => void;
   onPass: () => void;
-  onDrawWall?: () => void;
   onActivateSkill?: (skillId: string) => void;
   onConcealedKong?: (tile: Pick<Tile, 'suit' | 'rank'>) => void;
   showStart?: boolean;
@@ -50,8 +49,8 @@ function getActionHint(
   }
 
   if (phase === 'draw' && isMyTurn) {
-    if (skill?.canActivate && skill.activatePhase === 'draw') {
-      return '可选择摸牌墙或发动技能';
+    if (skill?.canActivate && skill.activatePhase === 'draw' && view.drawMode === 'choose') {
+      return '请在上方状态栏选择摸牌方式';
     }
     return '摸牌中…';
   }
@@ -76,10 +75,10 @@ function getActionHint(
       return '请选择借牌目标';
     }
     if (skill?.canActivate && canConcealedKong) {
-      return '可暗杠、发动技能；选手牌后在上方确认出牌';
+      return '可暗杠；点击上方状态栏发动技能，选手牌后确认出牌';
     }
     if (skill?.canActivate) {
-      return '可发动技能；选手牌后在上方确认出牌';
+      return '点击上方状态栏发动技能；选手牌后确认出牌';
     }
     if (canConcealedKong) {
       return '可暗杠；选手牌后在上方确认出牌';
@@ -97,7 +96,6 @@ export function ActionPanel({
   onStart,
   onRespond,
   onPass,
-  onDrawWall,
   onActivateSkill,
   onConcealedKong,
   showStart = true,
@@ -139,10 +137,6 @@ export function ActionPanel({
         <CharacterBattleBar
           character={character}
           skill={view.skill}
-          isMyTurn={isMyTurn}
-          phase={phase}
-          onDrawWall={onDrawWall}
-          onActivateSkill={onActivateSkill}
           onShowSkillInfo={
             onShowCharacterSkillInfo
               ? () =>

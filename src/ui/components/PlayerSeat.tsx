@@ -3,6 +3,7 @@ import type { PlayerIndex, PlayerStateView, ResponseOption, Tile as TileType, Wi
 import type { WinHandDisplay } from '@/core/winDecompose';
 import { useCompactLayout } from '../hooks/useCompactLayout';
 import type { SeatTurnIndicator } from '../utils/turnIndicators';
+import type { SeatTurnChoice } from '../utils/seatTurnChoices';
 import { resolveHandTiles } from '../utils/handView';
 import { HiddenHandStack } from './HiddenHandStack';
 import { PlayerCharacterAvatar } from './PlayerCharacterAvatar';
@@ -53,6 +54,10 @@ interface PlayerSeatProps {
   selectedDiscardTile?: TileType | null;
   onConfirmDiscard?: () => void;
   onClearDiscardSelection?: () => void;
+  skillActivatable?: boolean;
+  skillName?: string;
+  onActivateSkill?: () => void;
+  turnChoices?: SeatTurnChoice[];
 }
 
 export function PlayerSeat({
@@ -78,6 +83,10 @@ export function PlayerSeat({
   selectedDiscardTile = null,
   onConfirmDiscard,
   onClearDiscardSelection,
+  skillActivatable = false,
+  skillName = '',
+  onActivateSkill,
+  turnChoices,
 }: PlayerSeatProps) {
   const { compact, landscapeMobile } = useCompactLayout();
   const { tiles: handTiles, faceDown } = resolveHandTiles(state.hand);
@@ -89,6 +98,7 @@ export function PlayerSeat({
   const humanHandSize: TileSize = landscapeMobile ? 'sm' : compact ? 'md' : 'lg';
   const humanRiverSize = riverSizeForHand(humanHandSize);
   const mobileHandLayout = compact || landscapeMobile;
+  const bannerTileSize: TileSize = mobileHandLayout ? 'xs' : 'sm';
   const overlayTileSize: TileSize = 'sm';
 
   const [zoneOverlay, setZoneOverlay] = useState<'melds' | 'river' | null>(null);
@@ -116,12 +126,17 @@ export function PlayerSeat({
         <SeatTurnBanner
           indicator={turnIndicator ?? null}
           position={position}
+          tileSize={bannerTileSize}
           onRespond={onRespond}
           onPass={onPass}
           showResponseActions={showResponseActions}
           selectedDiscardTile={selectedDiscardTile}
           onConfirmDiscard={onConfirmDiscard}
           onClearDiscardSelection={onClearDiscardSelection}
+          skillActivatable={skillActivatable}
+          skillName={skillName}
+          onActivateSkill={onActivateSkill}
+          turnChoices={turnChoices}
         />
       </div>
 

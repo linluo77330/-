@@ -95,20 +95,12 @@ function getDiscardPhaseActionLabel(view: PlayerView, seatIndex: PlayerIndex): s
   if (view.skillActivity?.player === seatIndex) {
     return '请完成技能选择';
   }
-  const skill = seatIndex === view.viewer ? view.skill : null;
-  if (skill?.canActivate && skill.activatePhase === 'discard') {
-    return '该出牌 · 可发动技能';
-  }
   return '该出牌';
 }
 
 function getDrawPhaseActionLabel(view: PlayerView, seatIndex: PlayerIndex): string {
   if (view.skillActivity?.player === seatIndex) {
     return '请选择技能效果';
-  }
-  const skill = seatIndex === view.viewer ? view.skill : null;
-  if (skill?.canActivate && skill.activatePhase === 'draw') {
-    return '请摸牌或发动技能';
   }
   return '请摸牌';
 }

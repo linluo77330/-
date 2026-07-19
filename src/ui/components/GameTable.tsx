@@ -5,6 +5,7 @@ import { wildcardDescription } from '@/core/wildcard';
 import { useMemo, useState, useEffect, useRef } from 'react';
 import { getSkillUsesRemaining, type Character } from '../data/characters';
 import { getSeatTurnIndicator, createDiscardSegment } from '../utils/turnIndicators';
+import { buildDrawPhaseChoices } from '../utils/seatTurnChoices';
 import type { OnlineGameApi } from '../hooks/useOnlineGame';
 import type { useMahjongGame } from '../hooks/useMahjongGame';
 import { useGameLog } from '../hooks/useGameLog';
@@ -299,6 +300,8 @@ function GameTableLayout({
       ? humanHand.find((tile) => tile.id === selectedDiscardTileId) ?? null
       : null;
 
+  const humanDrawChoices = buildDrawPhaseChoices(view, humanPlayer, onDrawWall, onActivateSkill);
+
   const showCharacterSkillInfo = (target: CharacterSkillInfoTarget) => {
     if (view.skillActivity) return;
     setSkillInfoTarget(target);
@@ -454,6 +457,20 @@ function GameTableLayout({
                   ? () => setSelectedDiscardTileId(null)
                   : undefined
               }
+              skillActivatable={
+                index === humanPlayer &&
+                !!view.skill?.canActivate &&
+                view.phase === view.skill.activatePhase &&
+                !view.skillActivity &&
+                !humanDrawChoices
+              }
+              skillName={index === humanPlayer ? view.skill?.skillName ?? '' : ''}
+              onActivateSkill={
+                index === humanPlayer && view.skill?.canActivate && onActivateSkill
+                  ? () => onActivateSkill(view.skill!.skillId)
+                  : undefined
+              }
+              turnChoices={index === humanPlayer ? humanDrawChoices : undefined}
             />
           ))}
 
@@ -507,7 +524,6 @@ function GameTableLayout({
         onStart={onStart}
         onRespond={onRespond}
         onPass={onPass}
-        onDrawWall={onDrawWall}
         onActivateSkill={onActivateSkill}
         onConcealedKong={onConcealedKong}
         showStart={showStart}
