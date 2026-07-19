@@ -4,6 +4,7 @@ import {
   executeBotResponse,
   getBotActionDelayMs,
   runBotDiscard,
+  runBotDrawPhase,
 } from '@/core/botAI';
 import type { GameSnapshot, PlayerIndex } from '@/core/types';
 
@@ -56,12 +57,11 @@ export function useBotPlayers(game: MahjongGame, snapshot: GameSnapshot) {
       if (currentPlayer === HUMAN && (game.needsDrawChoice() || game.isSkillActive())) {
         return;
       }
-      schedule(() => game.drawCard());
+      schedule(() => runBotDrawPhase(game, currentPlayer));
       return;
     }
 
     if (phase === 'discard' && currentPlayer !== HUMAN) {
-      if (game.isSkillActive()) return;
       schedule(() => runBotDiscard(game, currentPlayer));
       return;
     }

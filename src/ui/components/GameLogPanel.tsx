@@ -3,6 +3,10 @@ import { LET_ME_DRAW_SKILL_ID } from '@/core/skills/letMeDraw';
 import { SPLIT_TILE_SKILL_ID } from '@/core/skills/splitTile';
 import { CANT_READ_SKILL_ID } from '@/core/skills/cantRead';
 import { INSTANT_WIN_VOTE_SKILL_ID } from '@/core/skills/instantWinVote';
+import { STEAL_VICTORY_SKILL_ID } from '@/core/skills/stealVictory';
+import { VEGETABLE_JUICE_CAISHEN_SKILL_ID } from '@/core/skills/vegetableJuiceCaishen';
+import { BORROW_TILE_SKILL_ID } from '@/core/skills/borrowTile';
+import { WEN_QU_DESCENDS_SKILL_ID } from '@/core/skills/wenQuDescends';
 import type { GameLogEntry } from '@/core/gameLog';
 import { logTileToTile } from '@/core/gameLog';
 import type { PlayerIndex, Tile as TileType } from '@/core/types';
@@ -47,6 +51,16 @@ function GameLogEntryRow({
   const tile = logTileToTile(entry.tile, entry.id);
 
   if (entry.kind === 'skill') {
+    if (entry.skillId === STEAL_VICTORY_SKILL_ID && entry.blackHandPublic) {
+      return (
+        <div className="game-log__entry game-log__entry--skill">
+          <span className="game-log__actor">{actor}</span>
+          <span className="game-log__verb">使用了</span>
+          <span className="game-log__skill-name">黑手</span>
+        </div>
+      );
+    }
+
     if (entry.skillId === LET_ME_DRAW_SKILL_ID) {
       return (
         <div className="game-log__entry game-log__entry--skill">
@@ -122,6 +136,53 @@ function GameLogEntryRow({
           <LogTiles tiles={[tile]} />
           <span className="game-log__verb">，丢弃</span>
           <LogTiles tiles={[discarded]} />
+        </div>
+      );
+    }
+
+    if (entry.skillId === VEGETABLE_JUICE_CAISHEN_SKILL_ID && entry.sourceTile) {
+      const sacrificed = logTileToTile(entry.sourceTile, `${entry.id}-src`);
+      return (
+        <div className="game-log__entry game-log__entry--skill">
+          <span className="game-log__actor">{actor}</span>
+          <span className="game-log__verb">发动</span>
+          <span className="game-log__skill-name">{entry.skillName ?? '技能'}</span>
+          <span className="game-log__verb">，将万能牌替换为</span>
+          <LogTiles tiles={[sacrificed]} />
+          <span className="game-log__verb">，获得</span>
+          <LogTiles tiles={[tile]} />
+        </div>
+      );
+    }
+
+    if (entry.skillId === BORROW_TILE_SKILL_ID && entry.sourceTile && entry.targetPlayer !== undefined) {
+      const offered = logTileToTile(entry.sourceTile, `${entry.id}-src`);
+      const target = playerName(seatNames, entry.targetPlayer);
+      return (
+        <div className="game-log__entry game-log__entry--skill">
+          <span className="game-log__actor">{actor}</span>
+          <span className="game-log__verb">发动</span>
+          <span className="game-log__skill-name">{entry.skillName ?? '技能'}</span>
+          <span className="game-log__verb">，用</span>
+          <LogTiles tiles={[offered]} />
+          <span className="game-log__verb">与</span>
+          <span className="game-log__actor">{target}</span>
+          <span className="game-log__verb">随机互换一张手牌</span>
+        </div>
+      );
+    }
+
+    if (entry.skillId === WEN_QU_DESCENDS_SKILL_ID && entry.sourceTile) {
+      const source = logTileToTile(entry.sourceTile, `${entry.id}-src`);
+      return (
+        <div className="game-log__entry game-log__entry--skill">
+          <span className="game-log__actor">{actor}</span>
+          <span className="game-log__verb">发动</span>
+          <span className="game-log__skill-name">{entry.skillName ?? '技能'}</span>
+          <span className="game-log__verb">，将</span>
+          <LogTiles tiles={[source]} />
+          <span className="game-log__verb">改写为</span>
+          <LogTiles tiles={[tile]} />
         </div>
       );
     }

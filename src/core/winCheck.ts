@@ -1,8 +1,39 @@
 import type { Meld, Tile, WildcardConfig } from './types.js';
-import { resolveTileForWin } from './wildcard.js';
 import { tilesEqual } from './deck.js';
+import { resolveTileForWin } from './wildcard.js';
 
 const NUMBER_SUITS = new Set(['wan', 'tong', 'tiao']);
+
+/** 鸣牌中的杠数量（每杠使总牌数 +1，仍计 1 个面子） */
+export function countKongMelds(melds: Meld[]): number {
+  return melds.filter((m) => m.type === 'kong').length;
+}
+
+/** 胡牌时手牌应有的张数（不含鸣牌区） */
+export function expectedHandTilesForWin(melds: Meld[]): number {
+  return (4 - melds.length) * 3 + 2;
+}
+
+/** 胡牌时手牌 + 鸣牌区总张数（标准 14，每杠 +1） */
+export function expectedTotalTilesForWin(melds: Meld[]): number {
+  return 14 + countKongMelds(melds);
+}
+
+/** 出牌阶段可暗杠的牌型（手牌含四张相同） */
+export function getConcealedKongCandidates(hand: Tile[]): Tile[] {
+  const seen = new Map<string, Tile>();
+  const counts = new Map<string, number>();
+  for (const tile of hand) {
+    const key = `${tile.suit}-${tile.rank}`;
+    if (!seen.has(key)) seen.set(key, tile);
+    counts.set(key, (counts.get(key) ?? 0) + 1);
+  }
+  const result: Tile[] = [];
+  for (const [key, count] of counts) {
+    if (count >= 4) result.push(seen.get(key)!);
+  }
+  return result;
+}
 
 /** 34 种牌型索引：万1-9, 筒1-9, 条1-9, 风1-4, 箭1-3 */
 export function tileIndex(tile: Pick<Tile, 'suit' | 'rank'>): number {
@@ -82,7 +113,12 @@ function canFormMelds(counts: number[], numSets: number): boolean {
   const start = counts.findIndex((c) => c > 0);
   if (start === -1) return numSets === 0;
 
-  // 刻子
+  // 杠（4 张）或刻子（3 张）
+  if (counts[start] >= 4) {
+    counts[start] -= 4;
+    if (canFormMelds(counts, numSets - 1)) return true;
+    counts[start] += 4;
+  }
   if (counts[start] >= 3) {
     counts[start] -= 3;
     if (canFormMelds(counts, numSets - 1)) return true;
@@ -127,16 +163,21 @@ function canFormMeldsWithWildcards(counts: number[], numSets: number, wild: numb
     return wild >= numSets * 3 && wild % 3 === 0;
   }
 
-  // 刻子：实牌 + 赖子
+  // 刻子 / 杠（4 张同牌）
   for (let useWild = 0; useWild <= Math.min(2, wild); useWild++) {
-    const needReal = 3 - useWild;
-    if (counts[start] >= needReal) {
-      counts[start] -= needReal;
+    for (const needReal of [3, 4] as const) {
+      if (needReal === 4 && counts[start] < 4) continue;
+      const tilesNeeded = needReal - useWild;
+      if (tilesNeeded <= 0) continue;
+      if (counts[start] < tilesNeeded) continue;
+      if (needReal === 4 && useWild > 0) continue;
+
+      counts[start] -= tilesNeeded;
       if (canFormMeldsWithWildcards(counts, numSets - 1, wild - useWild)) {
-        counts[start] += needReal;
+        counts[start] += tilesNeeded;
         return true;
       }
-      counts[start] += needReal;
+      counts[start] += tilesNeeded;
     }
   }
 
@@ -281,9 +322,12 @@ export function canWin(
 
   const meldCount = melds.length;
   const setsNeeded = 4 - meldCount;
-  const expectedTiles = setsNeeded * 3 + 2;
+  const expectedHand = setsNeeded * 3 + 2;
 
-  if (allTiles.length !== expectedTiles) return false;
+  if (allTiles.length !== expectedHand) return false;
+
+  const meldTileCount = melds.reduce((sum, meld) => sum + meld.tiles.length, 0);
+  if (allTiles.length + meldTileCount !== expectedTotalTilesForWin(melds)) return false;
 
   return canWinInternal(allTiles, meldCount, wildcard);
 }

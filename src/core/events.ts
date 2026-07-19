@@ -16,6 +16,15 @@ export interface GameEventMap {
   // ── 生命周期 ──
   game_start: { dealer: PlayerIndex };
   wildcard_reveal: { indicator: Tile; wildcard: WildcardConfig };
+  wildcard_change: {
+    player: PlayerIndex;
+    previousType: Pick<Tile, 'suit' | 'rank'>;
+    newType: Pick<Tile, 'suit' | 'rank'>;
+    previousIndicator: Tile;
+    newIndicator: Tile;
+    receivedTile: Tile;
+    sacrificedTile: Tile;
+  };
   game_over: { winner: PlayerIndex | null; reason: import('./types.js').GameOverReason };
   phase_change: { from: GamePhase; to: GamePhase };
   turn_change: { player: PlayerIndex; turnNumber: number };
@@ -36,6 +45,12 @@ export interface GameEventMap {
     drawnTiles?: Tile[];
     usesRemaining?: number;
     votePassed?: boolean;
+    /** 公开播报时不暴露黑手目标 */
+    blackHandPublic?: boolean;
+    /** 借牌技能：互换目标 */
+    targetPlayer?: PlayerIndex;
+    /** 借牌技能：公开播报不暴露换得的牌 */
+    hideReceivedTile?: boolean;
   };
 
   skill_vote_open: { initiator: PlayerIndex };

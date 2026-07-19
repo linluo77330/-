@@ -3,6 +3,7 @@ import {
   executeBotResponse,
   getBotActionDelayMs,
   runBotDiscard,
+  runBotDrawPhase,
 } from '../core/botAI.js';
 import { MahjongGame } from '../core/MahjongGame.js';
 import type { GameEventName } from '../core/events.js';
@@ -156,6 +157,10 @@ export class Room {
           if (!seat) throw new Error('请先加入房间');
           this.handleDiscard(seat, msg.tileId);
           break;
+        case 'concealed_kong':
+          if (!seat) throw new Error('请先加入房间');
+          this.handleConcealedKong(seat, msg.suit, msg.rank);
+          break;
         case 'pass':
           if (!seat) throw new Error('请先加入房间');
           this.handlePass(seat);
@@ -183,6 +188,8 @@ export class Room {
             tileId: msg.tileId,
             splitRanks: msg.splitRanks,
             confirm: msg.confirm,
+            targetPlayer: msg.targetPlayer,
+            skip: msg.skip,
           });
           break;
         case 'skill_vote':
@@ -339,6 +346,7 @@ export class Room {
       'response_window_close',
       'game_over',
       'wildcard_reveal',
+      'wildcard_change',
       'turn_change',
       'response_pass',
       'draw_choice_open',
@@ -472,7 +480,7 @@ export class Room {
         if (!this.isBot(this.game.getCurrentPlayer())) return;
         if (this.game.needsDrawChoice() || this.game.isSkillActive()) return;
         try {
-          this.game.drawCard();
+          runBotDrawPhase(this.game, this.game.getCurrentPlayer());
         } catch {
           // ignore
         }
@@ -480,7 +488,38 @@ export class Room {
       return;
     }
 
-    if (snap.phase === 'discard' && this.isBot(snap.currentPlayer) && !this.game.isSkillActive()) {
+    if (
+      snap.phase === 'draw' &&
+      this.isBot(snap.currentPlayer) &&
+      this.game.isSkillActive()
+    ) {
+      this.botTimer = setTimeout(() => {
+        if (!this.game || this.game.getPhase() !== 'draw') return;
+        if (!this.isBot(this.game.getCurrentPlayer())) return;
+        if (!this.game.isSkillActive()) return;
+        try {
+          runBotDrawPhase(this.game, this.game.getCurrentPlayer());
+        } catch {
+          // ignore
+        }
+      }, delay);
+      return;
+    }
+
+    if (snap.phase === 'draw' && this.isBot(snap.currentPlayer) && this.game.needsDrawChoice()) {
+      this.botTimer = setTimeout(() => {
+        if (!this.game || this.game.getPhase() !== 'draw') return;
+        if (!this.isBot(this.game.getCurrentPlayer())) return;
+        try {
+          runBotDrawPhase(this.game, this.game.getCurrentPlayer());
+        } catch {
+          // ignore
+        }
+      }, delay);
+      return;
+    }
+
+    if (snap.phase === 'discard' && this.isBot(snap.currentPlayer)) {
       this.botTimer = setTimeout(() => {
         if (!this.game || this.game.getPhase() !== 'discard') return;
         if (!this.isBot(this.game.getCurrentPlayer())) return;
@@ -522,6 +561,19 @@ export class Room {
       throw new Error('不是你的回合');
     }
     this.game.discardCard(tileId);
+  }
+
+  private handleConcealedKong(
+    seat: SeatSlot,
+    suit: import('../core/types.js').Tile['suit'],
+    rank: number,
+  ): void {
+    if (this.abortTimer) throw new Error('对局即将结束，请稍候');
+    if (!this.game) throw new Error('对局未开始');
+    if (this.game.getCurrentPlayer() !== seat.playerIndex) {
+      throw new Error('不是你的回合');
+    }
+    this.game.declareConcealedKong({ suit, rank });
   }
 
   private handlePass(seat: SeatSlot): void {
@@ -569,11 +621,19 @@ export class Room {
     if (!this.game.activateSkill(skillId)) {
       throw new Error('当前无法发动技能');
     }
+    this.broadcastGameState();
+    this.scheduleBotActions();
   }
 
   private handleSkillPick(
     seat: SeatSlot,
-    params: { tileId?: string; splitRanks?: [number, number]; confirm?: boolean },
+    params: {
+      tileId?: string;
+      splitRanks?: [number, number];
+      confirm?: boolean;
+      targetPlayer?: PlayerIndex;
+      skip?: boolean;
+    },
   ): void {
     if (this.abortTimer) throw new Error('对局即将结束，请稍候');
     if (!this.game) throw new Error('对局未开始');

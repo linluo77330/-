@@ -30,6 +30,8 @@ function baseSnapshot(overrides: Partial<GameSnapshot> = {}): GameSnapshot {
     skillUses: [0, 0, 0, 0],
     drawMode: null,
     skillMode: null,
+    blackHandTarget: null,
+    blackHandOwner: null,
     gameOverReason: null,
     ...overrides,
   };
@@ -218,6 +220,7 @@ describe('normalizePlayerView', () => {
       deckCount: 80,
       drawMode: 'choose',
       skillModeActive: true,
+      skillMode: { skillId: 'instant_win_vote', step: 'confirm' },
       playerCharacters: ['dui_kang_lu_galuo', '', '', ''],
       skillUses: [0, 0, 0, 0],
       skillActivity: {
@@ -238,5 +241,104 @@ describe('normalizePlayerView', () => {
     } as never);
 
     expect(view.skillActivity?.votePrompt).toContain('发起投票');
+  });
+
+  it('normalizePlayerView 忽略无 skillMode 的陈旧 skillActivity', () => {
+    const view = normalizePlayerView({
+      viewer: 0,
+      phase: 'discard',
+      currentPlayer: 0,
+      dealer: 0,
+      deckCount: 80,
+      skillMode: null,
+      skillActivity: {
+        player: 0,
+        characterId: 'jue_wang_de_wen_mang',
+        characterName: '绝望的文盲',
+        skillId: 'cant_read',
+        skillName: '我看不懂啊',
+        step: 'confirm',
+        previewTiles: [],
+        drawPreviewCount: 0,
+      },
+      playerCharacters: ['ling_shi_da_zong_tong', '', '', ''],
+      skillUses: [0, 0, 0, 0],
+      players: [
+        { hand: { kind: 'visible', tiles: [t('wan', 1)] }, discards: [], melds: [] },
+        { hand: { kind: 'hidden', count: 13 }, discards: [], melds: [] },
+        { hand: { kind: 'hidden', count: 13 }, discards: [], melds: [] },
+        { hand: { kind: 'hidden', count: 13 }, discards: [], melds: [] },
+      ],
+    } as never);
+
+    expect(view.skillModeActive).toBe(false);
+    expect(view.skillActivity).toBeNull();
+  });
+
+  it('零食大总统 skillMode 可重建 pick_target 界面', () => {
+    const view = normalizePlayerView({
+      viewer: 0,
+      phase: 'discard',
+      currentPlayer: 0,
+      dealer: 0,
+      deckCount: 80,
+      skillMode: { skillId: 'steal_victory', step: 'pick_target' },
+      playerCharacters: ['ling_shi_da_zong_tong', '', '', ''],
+      skillUses: [0, 0, 0, 0],
+      players: [
+        { hand: { kind: 'visible', tiles: [t('wan', 1)] }, discards: [], melds: [] },
+        { hand: { kind: 'hidden', count: 13 }, discards: [], melds: [] },
+        { hand: { kind: 'hidden', count: 13 }, discards: [], melds: [] },
+        { hand: { kind: 'hidden', count: 13 }, discards: [], melds: [] },
+      ],
+    } as never);
+
+    expect(view.skillModeActive).toBe(true);
+    expect(view.skillActivity?.step).toBe('pick_target');
+    expect(view.skillActivity?.pickableTargets).toEqual([1, 2, 3]);
+  });
+
+  it('联机客户端重算财神阿姨技能：需保留 wildcard', () => {
+    const view = normalizePlayerView({
+      viewer: 0,
+      phase: 'discard',
+      currentPlayer: 0,
+      dealer: 0,
+      deckCount: 80,
+      playerCharacters: ['cai_shen_a_yi', '', '', ''],
+      skillUses: [0, 0, 0, 0],
+      wildcard: {
+        indicator: t('wan', 3),
+        wildcardType: { suit: 'wan', rank: 3 },
+      },
+      players: [
+        { hand: { kind: 'visible', tiles: [t('wan', 5)] }, discards: [], melds: [] },
+        { hand: { kind: 'hidden', count: 13 }, discards: [], melds: [] },
+        { hand: { kind: 'hidden', count: 13 }, discards: [], melds: [] },
+        { hand: { kind: 'hidden', count: 13 }, discards: [], melds: [] },
+      ],
+    } as never);
+
+    expect(view.skill?.canActivate).toBe(true);
+  });
+
+  it('联机客户端重算借东西之人技能：隐藏手牌按张数计目标', () => {
+    const view = normalizePlayerView({
+      viewer: 0,
+      phase: 'discard',
+      currentPlayer: 0,
+      dealer: 0,
+      deckCount: 80,
+      playerCharacters: ['jie_dong_xi_zhi_ren', '', '', ''],
+      skillUses: [0, 0, 0, 0],
+      players: [
+        { hand: { kind: 'visible', tiles: [t('wan', 5)] }, discards: [], melds: [] },
+        { hand: { kind: 'hidden', count: 13 }, discards: [], melds: [] },
+        { hand: { kind: 'hidden', count: 13 }, discards: [], melds: [] },
+        { hand: { kind: 'hidden', count: 0 }, discards: [], melds: [] },
+      ],
+    } as never);
+
+    expect(view.skill?.canActivate).toBe(true);
   });
 });

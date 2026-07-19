@@ -24,6 +24,12 @@ export interface GameLogEntry {
   drawnTiles?: GameLogTile[];
   votePassed?: boolean;
   rejectedBy?: PlayerIndex;
+  /** 黑手技能：公开播报不暴露目标 */
+  blackHandPublic?: boolean;
+  /** 借牌技能：互换目标 */
+  targetPlayer?: PlayerIndex;
+  /** 借牌技能：公开播报不暴露换得的牌 */
+  hideReceivedTile?: boolean;
 }
 
 let logSequence = 0;
@@ -99,6 +105,9 @@ export function createSkillLog(payload: GameEventMap['skill_used']): GameLogEntr
     skillTiles: payload.discardedTiles?.map(toLogTile),
     drawnTiles: payload.drawnTiles?.map(toLogTile),
     votePassed: payload.votePassed,
+    blackHandPublic: payload.blackHandPublic,
+    targetPlayer: payload.targetPlayer,
+    hideReceivedTile: payload.hideReceivedTile,
   };
 }
 

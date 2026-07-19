@@ -256,12 +256,20 @@ export function useOnlineGame() {
   );
 
   const skillPick = useCallback(
-    (params: { tileId?: string; splitRanks?: [number, number]; confirm?: boolean }) =>
+    (params: {
+      tileId?: string;
+      splitRanks?: [number, number];
+      confirm?: boolean;
+      targetPlayer?: PlayerIndex;
+      skip?: boolean;
+    }) =>
       send({
         type: 'skill_pick',
         tileId: params.tileId,
         splitRanks: params.splitRanks,
         confirm: params.confirm,
+        targetPlayer: params.targetPlayer,
+        skip: params.skip,
       }),
     [send],
   );
@@ -272,6 +280,12 @@ export function useOnlineGame() {
   );
 
   const discard = useCallback((tileId: string) => send({ type: 'discard', tileId }), [send]);
+
+  const declareConcealedKong = useCallback(
+    (tile: Pick<import('@/core/types').Tile, 'suit' | 'rank'>) =>
+      send({ type: 'concealed_kong', suit: tile.suit, rank: tile.rank }),
+    [send],
+  );
 
   const pass = useCallback(() => send({ type: 'pass' }), [send]);
 
@@ -324,6 +338,7 @@ export function useOnlineGame() {
     addBot,
     removeBot,
     discard,
+    declareConcealedKong,
     pass,
     respondOption,
     drawWall,

@@ -21,7 +21,8 @@ export function CharacterBattleBar({
   onShowSkillInfo,
 }: CharacterBattleBarProps) {
   const canShowSkill = character.skill !== null && skill !== null;
-  const skillReady = canShowSkill && skill.canActivate && isMyTurn;
+  const skillReady =
+    canShowSkill && skill.canActivate && isMyTurn && phase === skill.activatePhase;
 
   return (
     <div className="character-battle-bar">
@@ -59,10 +60,10 @@ export function CharacterBattleBar({
             type="button"
             className={`btn character-battle-bar__skill-btn ${skillReady ? 'character-battle-bar__skill-btn--ready' : ''}`}
             disabled={!skillReady}
-            onClick={() => onActivateSkill?.(character.skill!.id)}
-            title={character.skill?.description}
+            onClick={() => onActivateSkill?.(skill.skillId)}
+            title={skill.skillDescription}
           >
-            {character.skill!.name}
+            {skill.skillName}
           </button>
         </div>
       )}

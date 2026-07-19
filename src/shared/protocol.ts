@@ -9,6 +9,7 @@ export type ClientMessage =
   | { type: 'add_bot'; seatIndex?: PlayerIndex }
   | { type: 'remove_bot'; seatIndex: PlayerIndex }
   | { type: 'discard'; tileId: string }
+  | { type: 'concealed_kong'; suit: import('../core/types.js').Tile['suit']; rank: number }
   | { type: 'pass' }
   | {
       type: 'respond';
@@ -18,7 +19,7 @@ export type ClientMessage =
   | { type: 'leave_game' }
   | { type: 'draw_wall' }
   | { type: 'activate_skill'; skillId: string }
-  | { type: 'skill_pick'; tileId?: string; splitRanks?: [number, number]; confirm?: boolean }
+  | { type: 'skill_pick'; tileId?: string; splitRanks?: [number, number]; confirm?: boolean; targetPlayer?: PlayerIndex; skip?: boolean }
   | { type: 'skill_vote'; agree: boolean };
 
 /** ── 服务端 → 客户端 ── */

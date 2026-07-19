@@ -1,6 +1,24 @@
 import type { MahjongGame } from './MahjongGame.js';
 import { getWaitingTiles } from './winCheck.js';
 import type { GameSnapshot, PlayerIndex, ResponseOption, Tile } from './types.js';
+import {
+  STEAL_VICTORY_SKILL_ID,
+  canUseStealVictory,
+} from './skills/stealVictory.js';
+import {
+  VEGETABLE_JUICE_CAISHEN_SKILL_ID,
+  canUseVegetableJuiceCaishen,
+} from './skills/vegetableJuiceCaishen.js';
+import {
+  BORROW_TILE_SKILL_ID,
+  canUseBorrowTile,
+  getBorrowTileTargets,
+} from './skills/borrowTile.js';
+import {
+  WEN_QU_DESCENDS_SKILL_ID,
+  canUseWenQuDescends,
+  isWanTile,
+} from './skills/wenQuDescends.js';
 
 const BOT_DELAY_MS = 800;
 
@@ -55,10 +73,126 @@ export function executeBotResponse(
 
 export function runBotDiscard(game: MahjongGame, player: PlayerIndex): void {
   const snap = game.getSnapshot();
+
+  if (game.isSkillActive()) {
+    const mode = snap.skillMode;
+    if (mode?.skillId === STEAL_VICTORY_SKILL_ID && mode.step === 'pick_target') {
+      const targets = ([0, 1, 2, 3] as PlayerIndex[]).filter((p) => p !== player);
+      if (targets.length === 0) return;
+      const target = targets[Math.floor(Math.random() * targets.length)];
+      try {
+        game.resolveSkillPick({ targetPlayer: target });
+      } catch {
+        // ignore
+      }
+    }
+    if (mode?.skillId === VEGETABLE_JUICE_CAISHEN_SKILL_ID && mode.step === 'pick_hand') {
+      const hand = snap.players[player].hand;
+      if (hand.length === 0) return;
+      const tile = hand[Math.floor(Math.random() * hand.length)];
+      try {
+        game.resolveSkillPick({ tileId: tile.id });
+      } catch {
+        // ignore
+      }
+    }
+    if (mode?.skillId === BORROW_TILE_SKILL_ID && mode.step === 'pick_hand') {
+      const hand = snap.players[player].hand;
+      if (hand.length === 0) return;
+      const tile = hand[Math.floor(Math.random() * hand.length)];
+      try {
+        game.resolveSkillPick({ tileId: tile.id });
+      } catch {
+        // ignore
+      }
+    }
+    if (mode?.skillId === BORROW_TILE_SKILL_ID && mode.step === 'pick_target') {
+      const targets = getBorrowTileTargets(snap, player);
+      if (targets.length === 0) return;
+      const target = targets[Math.floor(Math.random() * targets.length)];
+      try {
+        game.resolveSkillPick({ targetPlayer: target });
+      } catch {
+        // ignore
+      }
+    }
+    if (mode?.skillId === WEN_QU_DESCENDS_SKILL_ID && mode.step === 'pick_hand') {
+      const wanTiles = snap.players[player].hand.filter(isWanTile);
+      if (wanTiles.length === 0) return;
+      const tile = wanTiles[Math.floor(Math.random() * wanTiles.length)];
+      try {
+        game.resolveSkillPick({ tileId: tile.id });
+      } catch {
+        // ignore
+      }
+    }
+    if (mode?.skillId === WEN_QU_DESCENDS_SKILL_ID && mode.step === 'pick_wan_rank') {
+      const rank = 1 + Math.floor(Math.random() * 9);
+      try {
+        game.resolveSkillPick({ tileId: `wen-qu-wan-${rank}` });
+      } catch {
+        // ignore
+      }
+    }
+    return;
+  }
+
+  if (canUseWenQuDescends(snap, player) && Math.random() < 0.35) {
+    try {
+      if (game.activateSkill(WEN_QU_DESCENDS_SKILL_ID)) {
+        runBotDiscard(game, player);
+        return;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  if (canUseBorrowTile(snap, player) && Math.random() < 0.35) {
+    try {
+      if (game.activateSkill(BORROW_TILE_SKILL_ID)) {
+        runBotDiscard(game, player);
+        return;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  if (canUseVegetableJuiceCaishen(snap, player) && Math.random() < 0.35) {
+    try {
+      if (game.activateSkill(VEGETABLE_JUICE_CAISHEN_SKILL_ID)) {
+        runBotDiscard(game, player);
+        return;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  if (canUseStealVictory(snap, player) && Math.random() < 0.4) {
+    try {
+      if (game.activateSkill(STEAL_VICTORY_SKILL_ID)) {
+        runBotDiscard(game, player);
+        return;
+      }
+    } catch {
+      // ignore
+    }
+  }
+
   const state = snap.players[player];
   if (state.hand.length === 0) return;
   const tile = pickBotDiscardTile(state.hand, state.melds, snap.wildcard);
   game.discardCard(tile.id);
+}
+
+export function runBotDrawPhase(game: MahjongGame, player: PlayerIndex): void {
+  try {
+    game.drawCard();
+  } catch {
+    // ignore
+  }
 }
 
 export function getBotActionDelayMs(): number {

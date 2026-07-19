@@ -1,5 +1,4 @@
 import type { GameSnapshot, PlayerIndex, SkillActivityView, Tile } from '../types.js';
-import { isDealerTurnOpening } from './instantWinVote.js';
 
 export const JUE_WANG_DE_WEN_MANG_ID = 'jue_wang_de_wen_mang';
 export const JUE_WANG_DE_WEN_MANG_NAME = '绝望的文盲';
@@ -23,13 +22,6 @@ export function getUnreadableTilesInHand(hand: Tile[]): Tile[] {
   return hand.filter(isUnreadableTile);
 }
 
-export function isDealerCantReadOpening(
-  snapshot: Pick<GameSnapshot, 'phase' | 'currentPlayer' | 'dealer' | 'turnNumber'>,
-  player: PlayerIndex,
-): boolean {
-  return isDealerTurnOpening(snapshot, player);
-}
-
 export function canPlayerUseCantReadSkill(
   snapshot: Pick<GameSnapshot, 'playerCharacters' | 'players'>,
   player: PlayerIndex,
@@ -51,10 +43,6 @@ export function canUseCantRead(
 
   if (snapshot.phase === 'draw') {
     return snapshot.drawMode === 'choose';
-  }
-
-  if (snapshot.phase === 'discard') {
-    return isDealerTurnOpening(snapshot, player);
   }
 
   return false;

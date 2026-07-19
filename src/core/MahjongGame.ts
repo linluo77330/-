@@ -50,9 +50,37 @@ import {
   isDuiKangLuGaluo,
   isInstantWinVoteActive,
 } from './skills/instantWinVote.js';
+import {
+  LING_SHI_DA_ZONG_TONG_ID,
+  STEAL_VICTORY_SKILL_ID,
+  STEAL_VICTORY_SKILL_NAME,
+  canUseStealVictory,
+  isBlackHandJudgmentHonorTile,
+} from './skills/stealVictory.js';
+import {
+  VEGETABLE_JUICE_CAISHEN_MAX_USES,
+  VEGETABLE_JUICE_CAISHEN_SKILL_ID,
+  VEGETABLE_JUICE_CAISHEN_SKILL_NAME,
+  canUseVegetableJuiceCaishen,
+} from './skills/vegetableJuiceCaishen.js';
+import {
+  BORROW_TILE_MAX_USES,
+  BORROW_TILE_SKILL_ID,
+  BORROW_TILE_SKILL_NAME,
+  canUseBorrowTile,
+  getBorrowTileTargets,
+} from './skills/borrowTile.js';
+import {
+  WEN_QU_DESCENDS_MAX_USES,
+  WEN_QU_DESCENDS_SKILL_ID,
+  WEN_QU_DESCENDS_SKILL_NAME,
+  canUseWenQuDescends,
+  isWanTile,
+  parseWenQuWanTargetRank,
+} from './skills/wenQuDescends.js';
 import { canWin } from './winCheck.js';
 import { buildPlayerView } from './playerView.js';
-import { createWildcardConfig } from './wildcard.js';
+import { createWildcardConfig, replaceWildcardDisplay } from './wildcard.js';
 import type { WildcardConfig, PlayerView } from './types.js';
 
 const PLAYER_COUNT = 4;
@@ -105,6 +133,9 @@ export class MahjongGame {
   private skillUses: [number, number, number, number] = [0, 0, 0, 0];
   private drawMode: DrawMode | null = null;
   private skillMode: SkillMode | null = null;
+  private blackHandTarget: PlayerIndex | null = null;
+  private blackHandOwner: PlayerIndex | null = null;
+  private blackHandJudgmentPending = false;
   private gameOverReason: GameOverReason | null = null;
 
   // ── 事件订阅（代理到内部 emitter）──────────────────────────
@@ -163,6 +194,8 @@ export class MahjongGame {
             }
           : { ...this.skillMode }
         : null,
+      blackHandTarget: this.blackHandTarget,
+      blackHandOwner: this.blackHandOwner,
       gameOverReason: this.gameOverReason,
     };
   }
@@ -207,6 +240,9 @@ export class MahjongGame {
     this.skillUses = [0, 0, 0, 0];
     this.drawMode = null;
     this.skillMode = null;
+    this.blackHandTarget = null;
+    this.blackHandOwner = null;
+    this.blackHandJudgmentPending = false;
     this.gameOverReason = null;
 
     this.setPhase('dealing');
@@ -286,6 +322,10 @@ export class MahjongGame {
     if (skillId === CANT_READ_SKILL_ID) return this.activateCantReadSkill();
     if (skillId === INSTANT_WIN_VOTE_SKILL_ID) return this.activateInstantWinVoteSkill();
     if (skillId === SPLIT_TILE_SKILL_ID) return this.activateSplitTileSkill();
+    if (skillId === STEAL_VICTORY_SKILL_ID) return this.activateStealVictorySkill();
+    if (skillId === VEGETABLE_JUICE_CAISHEN_SKILL_ID) return this.activateVegetableJuiceCaishenSkill();
+    if (skillId === BORROW_TILE_SKILL_ID) return this.activateBorrowTileSkill();
+    if (skillId === WEN_QU_DESCENDS_SKILL_ID) return this.activateWenQuDescendsSkill();
     return false;
   }
 
@@ -332,7 +372,6 @@ export class MahjongGame {
     return true;
   }
 
-  /** 发动「大力出奇迹」：进入选手牌 */
   activateSplitTileSkill(): boolean {
     this.assertPhase('discard');
     const player = this.currentPlayer;
@@ -347,11 +386,73 @@ export class MahjongGame {
     return true;
   }
 
-  /** 技能交互：选牌 / 选拆分 / 选保留 / 确认 */
+  /** 发动「窃取胜利果实」：点击技能按钮后选择黑手目标 */
+  activateStealVictorySkill(): boolean {
+    this.assertPhase('discard');
+    const player = this.currentPlayer;
+    const snap = this.getSnapshot();
+
+    if (!canUseStealVictory(snap, player)) {
+      return false;
+    }
+
+    this.skillMode = { skillId: STEAL_VICTORY_SKILL_ID, step: 'pick_target' };
+    this.events.emit('skill_pick_open', { player });
+    return true;
+  }
+
+  /** 发动「蔬菜汁财神」：选手牌替换万能牌 */
+  activateVegetableJuiceCaishenSkill(): boolean {
+    this.assertPhase('discard');
+    const player = this.currentPlayer;
+    const snap = this.getSnapshot();
+
+    if (!canUseVegetableJuiceCaishen(snap, player)) {
+      return false;
+    }
+
+    this.skillMode = { skillId: VEGETABLE_JUICE_CAISHEN_SKILL_ID, step: 'pick_hand' };
+    this.events.emit('skill_pick_open', { player });
+    return true;
+  }
+
+  /** 发动「同学这个借我用一下」：选手牌后指定玩家互换 */
+  activateBorrowTileSkill(): boolean {
+    this.assertPhase('discard');
+    const player = this.currentPlayer;
+    const snap = this.getSnapshot();
+
+    if (!canUseBorrowTile(snap, player)) {
+      return false;
+    }
+
+    this.skillMode = { skillId: BORROW_TILE_SKILL_ID, step: 'pick_hand' };
+    this.events.emit('skill_pick_open', { player });
+    return true;
+  }
+
+  /** 发动「文曲下凡」：选万字牌后改点数 */
+  activateWenQuDescendsSkill(): boolean {
+    this.assertPhase('discard');
+    const player = this.currentPlayer;
+    const snap = this.getSnapshot();
+
+    if (!canUseWenQuDescends(snap, player)) {
+      return false;
+    }
+
+    this.skillMode = { skillId: WEN_QU_DESCENDS_SKILL_ID, step: 'pick_hand' };
+    this.events.emit('skill_pick_open', { player });
+    return true;
+  }
+
+  /** 技能交互：选牌 / 选拆分 / 选保留 / 确认 / 选黑手目标 */
   resolveSkillPick(params: {
     tileId?: string;
     splitRanks?: [number, number];
     confirm?: boolean;
+    targetPlayer?: PlayerIndex;
+    skip?: boolean;
   }): boolean {
     if (!this.skillMode) {
       throw new Error('当前未在技能选择中');
@@ -379,7 +480,305 @@ export class MahjongGame {
       return this.resolveSplitTilePick(params);
     }
 
+    if (this.skillMode.skillId === STEAL_VICTORY_SKILL_ID) {
+      return this.resolveStealVictoryPick(params);
+    }
+
+    if (this.skillMode.skillId === VEGETABLE_JUICE_CAISHEN_SKILL_ID) {
+      return this.resolveVegetableJuiceCaishenPick(params);
+    }
+
+    if (this.skillMode.skillId === BORROW_TILE_SKILL_ID) {
+      return this.resolveBorrowTilePick(params);
+    }
+
+    if (this.skillMode.skillId === WEN_QU_DESCENDS_SKILL_ID) {
+      return this.resolveWenQuDescendsPick(params);
+    }
+
     return false;
+  }
+
+  private resolveWenQuDescendsPick(params: {
+    tileId?: string;
+    skip?: boolean;
+  }): boolean {
+    const mode = this.skillMode;
+    if (!mode || mode.skillId !== WEN_QU_DESCENDS_SKILL_ID) {
+      throw new Error('当前未在文曲下凡技能中');
+    }
+
+    const player = this.currentPlayer;
+
+    if (params.skip) {
+      this.skillMode = null;
+      return true;
+    }
+
+    if (mode.step === 'pick_hand') {
+      if (!params.tileId) {
+        throw new Error('请选择万字牌');
+      }
+
+      const hand = this.players[player].hand;
+      const sourceTile = hand.find((t) => t.id === params.tileId);
+      if (!sourceTile || !isWanTile(sourceTile)) {
+        throw new Error('只能选择万字牌');
+      }
+
+      this.skillMode = {
+        skillId: WEN_QU_DESCENDS_SKILL_ID,
+        step: 'pick_wan_rank',
+        sourceTileId: sourceTile.id,
+      };
+      this.events.emit('skill_pick_open', { player });
+      return true;
+    }
+
+    if (mode.step === 'pick_wan_rank') {
+      if (!params.tileId) {
+        throw new Error('请选择目标万字牌');
+      }
+
+      const targetRank = parseWenQuWanTargetRank(params.tileId);
+      if (targetRank === null) {
+        throw new Error('请选择一至九万');
+      }
+
+      const hand = this.players[player].hand;
+      const sourceIdx = hand.findIndex((t) => t.id === mode.sourceTileId);
+      if (sourceIdx === -1) {
+        throw new Error('所选万字牌不在手中');
+      }
+
+      const sourceTile = hand[sourceIdx];
+      if (!isWanTile(sourceTile)) {
+        throw new Error('所选牌不是万字牌');
+      }
+
+      const transformedTile: Tile = {
+        id: sourceTile.id,
+        suit: 'wan',
+        rank: targetRank,
+      };
+      hand[sourceIdx] = transformedTile;
+      this.skillUses[player] += 1;
+      this.skillMode = null;
+
+      this.events.emit('skill_used', {
+        player,
+        skillId: WEN_QU_DESCENDS_SKILL_ID,
+        skillName: WEN_QU_DESCENDS_SKILL_NAME,
+        tile: { ...transformedTile },
+        sourceTile: { ...sourceTile },
+        usesRemaining: WEN_QU_DESCENDS_MAX_USES - this.skillUses[player],
+      });
+
+      if (this.tryHu(player, transformedTile, true)) {
+        return true;
+      }
+
+      return true;
+    }
+
+    return false;
+  }
+
+  private resolveBorrowTilePick(params: {
+    tileId?: string;
+    targetPlayer?: PlayerIndex;
+    skip?: boolean;
+  }): boolean {
+    const mode = this.skillMode;
+    if (!mode || mode.skillId !== BORROW_TILE_SKILL_ID) {
+      throw new Error('当前未在借牌技能中');
+    }
+
+    const player = this.currentPlayer;
+
+    if (params.skip) {
+      this.skillMode = null;
+      return true;
+    }
+
+    if (mode.step === 'pick_hand') {
+      if (!params.tileId) {
+        throw new Error('请选择手牌');
+      }
+
+      const hand = this.players[player].hand;
+      const sourceTile = hand.find((t) => t.id === params.tileId);
+      if (!sourceTile) {
+        throw new Error('请选择手牌中的一张牌');
+      }
+
+      const targets = getBorrowTileTargets(this.getSnapshot(), player);
+      if (targets.length === 0) {
+        throw new Error('没有可借牌的目标玩家');
+      }
+
+      this.skillMode = {
+        skillId: BORROW_TILE_SKILL_ID,
+        step: 'pick_target',
+        sourceTileId: sourceTile.id,
+      };
+      this.events.emit('skill_pick_open', { player });
+      return true;
+    }
+
+    if (mode.step === 'pick_target') {
+      if (params.targetPlayer === undefined) {
+        throw new Error('请选择目标玩家');
+      }
+
+      const target = params.targetPlayer;
+      if (target === player) {
+        throw new Error('不能选择自己');
+      }
+
+      const actorHand = this.players[player].hand;
+      const sourceIdx = actorHand.findIndex((t) => t.id === mode.sourceTileId);
+      if (sourceIdx === -1) {
+        throw new Error('所选手牌不在手中');
+      }
+
+      const targetHand = this.players[target].hand;
+      if (targetHand.length === 0) {
+        throw new Error('目标玩家没有手牌');
+      }
+
+      const offeredTile = actorHand[sourceIdx];
+      const randomIdx = Math.floor(Math.random() * targetHand.length);
+      const borrowedTile = targetHand[randomIdx];
+
+      actorHand[sourceIdx] = { ...borrowedTile };
+      targetHand[randomIdx] = { ...offeredTile };
+
+      this.skillUses[player] += 1;
+      this.skillMode = null;
+
+      this.events.emit('skill_used', {
+        player,
+        skillId: BORROW_TILE_SKILL_ID,
+        skillName: BORROW_TILE_SKILL_NAME,
+        tile: { ...borrowedTile },
+        sourceTile: { ...offeredTile },
+        targetPlayer: target,
+        hideReceivedTile: true,
+        usesRemaining: BORROW_TILE_MAX_USES - this.skillUses[player],
+      });
+
+      return true;
+    }
+
+    return false;
+  }
+
+  private resolveVegetableJuiceCaishenPick(params: {
+    tileId?: string;
+    skip?: boolean;
+  }): boolean {
+    if (
+      this.skillMode?.skillId !== VEGETABLE_JUICE_CAISHEN_SKILL_ID ||
+      this.skillMode.step !== 'pick_hand'
+    ) {
+      throw new Error('当前未在选择手牌');
+    }
+
+    const player = this.currentPlayer;
+
+    if (params.skip) {
+      this.skillMode = null;
+      return true;
+    }
+
+    if (!params.tileId) {
+      throw new Error('请选择手牌');
+    }
+
+    if (!this.wildcard) {
+      throw new Error('当前没有万能牌');
+    }
+
+    const hand = this.players[player].hand;
+    const idx = hand.findIndex((t) => t.id === params.tileId);
+    if (idx === -1) {
+      throw new Error('请选择手牌中的一张牌');
+    }
+
+    const sacrificed = hand[idx];
+    const previousType = { ...this.wildcard.wildcardType };
+    const previousIndicator = { ...this.wildcard.indicator };
+    const receivedTile = createSkillTile(previousType.suit, previousType.rank);
+
+    hand.splice(idx, 1);
+    hand.push(receivedTile);
+
+    this.wildcard = replaceWildcardDisplay(this.wildcard, {
+      suit: sacrificed.suit,
+      rank: sacrificed.rank,
+    });
+
+    this.skillUses[player] += 1;
+    this.skillMode = null;
+
+    this.events.emit('wildcard_change', {
+      player,
+      previousType,
+      newType: { suit: sacrificed.suit, rank: sacrificed.rank },
+      previousIndicator,
+      newIndicator: { ...this.wildcard.indicator },
+      receivedTile,
+      sacrificedTile: { ...sacrificed },
+    });
+
+    this.events.emit('skill_used', {
+      player,
+      skillId: VEGETABLE_JUICE_CAISHEN_SKILL_ID,
+      skillName: VEGETABLE_JUICE_CAISHEN_SKILL_NAME,
+      tile: receivedTile,
+      sourceTile: { ...sacrificed },
+      usesRemaining: VEGETABLE_JUICE_CAISHEN_MAX_USES - this.skillUses[player],
+    });
+
+    return true;
+  }
+
+  private resolveStealVictoryPick(params: {
+    targetPlayer?: PlayerIndex;
+    skip?: boolean;
+  }): boolean {
+    if (this.skillMode?.skillId !== STEAL_VICTORY_SKILL_ID || this.skillMode.step !== 'pick_target') {
+      throw new Error('当前未在选择黑手目标');
+    }
+
+    const player = this.currentPlayer;
+    this.skillMode = null;
+
+    if (params.skip) {
+      return true;
+    }
+
+    const target = params.targetPlayer;
+    if (target === undefined) {
+      throw new Error('请选择黑手目标');
+    }
+    if (target === player) {
+      throw new Error('不能对自己使用黑手');
+    }
+
+    this.blackHandTarget = target;
+    this.blackHandOwner = player;
+
+    this.events.emit('skill_used', {
+      player,
+      skillId: STEAL_VICTORY_SKILL_ID,
+      skillName: '黑手',
+      tile: { id: 'black-hand', suit: 'feng', rank: 1 },
+      blackHandPublic: true,
+    });
+
+    return true;
   }
 
   /** 投票型技能：其余玩家表决 */
@@ -795,6 +1194,32 @@ export class MahjongGame {
 
   // ── 出牌 ────────────────────────────────────────────────────
 
+  /** 暗杠：手牌四张相同牌亮杠并补摸一张，随后仍需出牌 */
+  declareConcealedKong(tile: Pick<Tile, 'suit' | 'rank'>): boolean {
+    this.assertPhase('discard');
+    if (this.skillMode !== null) {
+      throw new Error('请先完成技能选择');
+    }
+
+    const player = this.currentPlayer;
+    const meld = this.applyConcealedKong(player, tile);
+
+    this.events.emit('after_response', {
+      player,
+      action: 'kong',
+      meld,
+      won: false,
+    });
+
+    const hand = this.players[player].hand;
+    const lastTile = hand[hand.length - 1];
+    if (lastTile && this.tryHu(player, lastTile, true)) {
+      return true;
+    }
+
+    return true;
+  }
+
   discardCard(tileId: string): Tile | null {
     this.assertPhase('discard');
 
@@ -1008,6 +1433,10 @@ export class MahjongGame {
 
   /** 无人吃碰杠胡 → 下家摸牌 */
   private advanceToNextDraw(afterPlayer: PlayerIndex): void {
+    if (this.blackHandTarget === afterPlayer) {
+      this.clearBlackHand();
+    }
+
     this.currentPlayer = nextPlayer(afterPlayer);
     this.events.emit('turn_change', {
       player: this.currentPlayer,
@@ -1101,6 +1530,30 @@ export class MahjongGame {
     return meld;
   }
 
+  private applyConcealedKong(player: PlayerIndex, tile: Pick<Tile, 'suit' | 'rank'>): Meld {
+    const hand = this.players[player].hand;
+    const matches = hand.filter((t) => tilesEqual(t, tile));
+    if (matches.length < 4) {
+      throw new Error('需要手牌中有四张相同的牌才能暗杠');
+    }
+
+    const kongTiles = matches.slice(0, 4).map((t) => ({ ...t }));
+    for (const t of matches.slice(0, 4)) {
+      hand.splice(
+        hand.findIndex((h) => h.id === t.id),
+        1,
+      );
+    }
+
+    const meld: Meld = {
+      type: 'kong',
+      tiles: kongTiles,
+    };
+    this.players[player].melds.push(meld);
+    this.supplementAfterKong(player);
+    return meld;
+  }
+
   private applyKong(player: PlayerIndex, tile: Tile, from: PlayerIndex): Meld {
     const hand = this.players[player].hand;
     const matches = hand.filter((t) => tilesEqual(t, tile)).slice(0, 3);
@@ -1159,7 +1612,53 @@ export class MahjongGame {
     });
   }
 
+  private clearBlackHand(): void {
+    this.blackHandTarget = null;
+    this.blackHandOwner = null;
+    this.blackHandJudgmentPending = false;
+  }
+
   // ── 胡牌（占位）────────────────────────────────────────────
+
+  private finalizeHu(player: PlayerIndex, tile: Tile, isSelfDraw: boolean): boolean {
+    this.winInfo = { tile: { ...tile }, isSelfDraw };
+    this.events.emit('after_hu', { player, tile, isSelfDraw });
+    this.events.emit('after_response', {
+      player,
+      action: 'hu',
+      won: true,
+    });
+    this.closeResponseWindow(true);
+    this.clearBlackHand();
+    this.endGame(player, 'hu');
+    return true;
+  }
+
+  private finalizeStealWin(
+    owner: PlayerIndex,
+    originalWinner: PlayerIndex,
+    tile: Tile,
+    isSelfDraw: boolean,
+    judgmentTile: Tile,
+  ): boolean {
+    this.winInfo = null;
+    this.events.emit('after_hu', { player: originalWinner, tile, isSelfDraw });
+    this.events.emit('after_response', {
+      player: originalWinner,
+      action: 'hu',
+      won: true,
+    });
+    this.events.emit('skill_used', {
+      player: owner,
+      skillId: STEAL_VICTORY_SKILL_ID,
+      skillName: STEAL_VICTORY_SKILL_NAME,
+      tile: { ...judgmentTile },
+    });
+    this.closeResponseWindow(true);
+    this.clearBlackHand();
+    this.endGame(owner, 'skill_steal');
+    return true;
+  }
 
   private tryHu(player: PlayerIndex, tile: Tile, isSelfDraw: boolean): boolean {
     const state = this.players[player];
@@ -1172,16 +1671,27 @@ export class MahjongGame {
       return false;
     }
 
-    this.winInfo = { tile: { ...tile }, isSelfDraw };
-    this.events.emit('after_hu', { player, tile, isSelfDraw });
-    this.events.emit('after_response', {
-      player,
-      action: 'hu',
-      won: true,
-    });
-    this.closeResponseWindow(true);
-    this.endGame(player, 'hu');
-    return true;
+    if (
+      this.blackHandTarget === player &&
+      this.blackHandOwner !== null &&
+      this.currentPlayer === player
+    ) {
+      this.blackHandJudgmentPending = true;
+
+      if (this.deck.length === 0) {
+        return this.finalizeHu(player, tile, isSelfDraw);
+      }
+
+      const judgmentTile = this.deck.pop()!;
+
+      if (isBlackHandJudgmentHonorTile(judgmentTile)) {
+        return this.finalizeHu(player, tile, isSelfDraw);
+      }
+
+      return this.finalizeStealWin(this.blackHandOwner, player, tile, isSelfDraw, judgmentTile);
+    }
+
+    return this.finalizeHu(player, tile, isSelfDraw);
   }
 
   // ── 断言 ────────────────────────────────────────────────────

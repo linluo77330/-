@@ -1,5 +1,8 @@
-import type { PlayerView, ResponseOption } from '@/core/types';
+import type { PlayerView, ResponseOption, Tile } from '@/core/types';
+import { getConcealedKongCandidates } from '@/core/winCheck';
 import type { Character } from '../data/characters';
+import { getVisibleHand } from '../utils/handView';
+import { tileLabel } from '../utils/tileLabels';
 import { CharacterBattleBar } from './CharacterBattleBar';
 import { ResponsePanel } from './ResponsePanel';
 import type { CharacterSkillInfoTarget } from './CharacterSkillInfoOverlay';
@@ -13,6 +16,7 @@ interface ActionPanelProps {
   onPass: () => void;
   onDrawWall?: () => void;
   onActivateSkill?: (skillId: string) => void;
+  onConcealedKong?: (tile: Pick<Tile, 'suit' | 'rank'>) => void;
   showStart?: boolean;
   humanDisplayName?: string;
   onShowCharacterSkillInfo?: (target: CharacterSkillInfoTarget) => void;
@@ -27,7 +31,11 @@ const PHASE_LABELS: Record<string, string> = {
   game_over: '对局结束',
 };
 
-function getActionHint(view: PlayerView, humanPlayer: import('@/core/types').PlayerIndex): string | null {
+function getActionHint(
+  view: PlayerView,
+  humanPlayer: import('@/core/types').PlayerIndex,
+  canConcealedKong: boolean,
+): string | null {
   const { phase, currentPlayer, skill, skillActivity } = view;
   const isMyTurn = currentPlayer === humanPlayer;
 
@@ -49,8 +57,32 @@ function getActionHint(view: PlayerView, humanPlayer: import('@/core/types').Pla
   }
 
   if (phase === 'discard' && isMyTurn) {
+    if (skillActivity?.step === 'pick_target') {
+      return '请选择黑手目标或跳过';
+    }
+    if (skillActivity?.step === 'pick_hand' && view.skill?.skillId === 'vegetable_juice_caishen') {
+      return '请选择手牌替换万能牌';
+    }
+    if (skillActivity?.step === 'pick_hand' && view.skill?.skillId === 'borrow_tile') {
+      return '请选择要借出的手牌';
+    }
+    if (skillActivity?.step === 'pick_hand' && view.skill?.skillId === 'wen_qu_descends') {
+      return '请选择要改写的万字牌';
+    }
+    if (skillActivity?.step === 'pick_wan_rank') {
+      return '请选择改写后的万字牌';
+    }
+    if (skillActivity?.step === 'pick_target' && view.skill?.skillId === 'borrow_tile') {
+      return '请选择借牌目标';
+    }
+    if (skill?.canActivate && canConcealedKong) {
+      return '可暗杠、发动技能或点击手牌出牌';
+    }
     if (skill?.canActivate) {
       return '可发动技能或点击手牌出牌';
+    }
+    if (canConcealedKong) {
+      return '可暗杠或点击手牌出牌';
     }
     return '点击手牌出牌';
   }
@@ -67,13 +99,22 @@ export function ActionPanel({
   onPass,
   onDrawWall,
   onActivateSkill,
+  onConcealedKong,
   showStart = true,
   humanDisplayName = '你',
   onShowCharacterSkillInfo,
 }: ActionPanelProps) {
   const { phase, deckCount, winner } = view;
   const isMyTurn = view.currentPlayer === humanPlayer;
-  const hint = getActionHint(view, humanPlayer);
+  const concealedKongOptions =
+    phase === 'discard' &&
+    isMyTurn &&
+    !view.skillActivity &&
+    onConcealedKong
+      ? getConcealedKongCandidates(getVisibleHand(view.players[humanPlayer]) ?? [])
+      : [];
+
+  const hint = getActionHint(view, humanPlayer, concealedKongOptions.length > 0);
   const showStartBtn = showStart && onStart && (phase === 'idle' || phase === 'game_over');
 
   return (
@@ -113,6 +154,21 @@ export function ActionPanel({
               : undefined
           }
         />
+
+        {concealedKongOptions.length > 0 && (
+          <div className="action-panel__kong-actions">
+            {concealedKongOptions.map((tile) => (
+              <button
+                key={`${tile.suit}-${tile.rank}`}
+                type="button"
+                className="btn btn--ghost action-panel__kong-btn"
+                onClick={() => onConcealedKong?.({ suit: tile.suit, rank: tile.rank })}
+              >
+                暗杠 {tileLabel(tile)}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

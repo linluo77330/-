@@ -90,6 +90,32 @@ export type SkillMode =
       rankB: number;
       tileA: Tile;
       tileB: Tile;
+    }
+  | {
+      skillId: 'steal_victory';
+      step: 'pick_target';
+    }
+  | {
+      skillId: 'vegetable_juice_caishen';
+      step: 'pick_hand';
+    }
+  | {
+      skillId: 'borrow_tile';
+      step: 'pick_hand';
+    }
+  | {
+      skillId: 'borrow_tile';
+      step: 'pick_target';
+      sourceTileId: string;
+    }
+  | {
+      skillId: 'wen_qu_descends';
+      step: 'pick_hand';
+    }
+  | {
+      skillId: 'wen_qu_descends';
+      step: 'pick_wan_rank';
+      sourceTileId: string;
     };
 
 export interface LastDiscard {
@@ -116,7 +142,7 @@ export interface SkillVoteStatus {
   choice: SkillVoteChoice | 'pending';
 }
 
-export type GameOverReason = 'hu' | 'draw' | 'abort' | 'skill_vote';
+export type GameOverReason = 'hu' | 'draw' | 'abort' | 'skill_vote' | 'skill_steal';
 
 export interface WildcardConfig {
   /** 发牌后从牌墙首张翻出的指示牌 */
@@ -152,7 +178,10 @@ export type SkillActivityStep =
   | 'pick_split'
   | 'pick_keep'
   | 'confirm'
-  | 'vote';
+  | 'vote'
+  | 'pick_target'
+  | 'pick_hand'
+  | 'pick_wan_rank';
 
 export interface SkillSplitOption {
   rankA: number;
@@ -178,6 +207,10 @@ export interface SkillActivityView {
   votePrompt?: string;
   voteStatus?: SkillVoteStatus[];
   canVote?: boolean;
+  /** 黑手技能：可选目标座位（仅发动者可见） */
+  pickableTargets?: PlayerIndex[];
+  /** 万能牌替换技能提示 */
+  wildcardPrompt?: string;
 }
 
 export interface GameSnapshot {
@@ -199,6 +232,9 @@ export interface GameSnapshot {
   skillUses: [number, number, number, number];
   drawMode: DrawMode | null;
   skillMode: SkillMode | null;
+  /** 黑手标记目标；完整状态仅服务端持有，按视角过滤后下发 */
+  blackHandTarget: PlayerIndex | null;
+  blackHandOwner: PlayerIndex | null;
   gameOverReason: GameOverReason | null;
 }
 
@@ -253,5 +289,7 @@ export interface PlayerView {
   skill: SkillViewState | null;
   /** 有玩家正在发动技能并选择效果时为非 null */
   skillActivity: SkillActivityView | null;
+  /** 仅零食大总统视角可见：当前黑手标记的玩家 */
+  blackHandTarget: PlayerIndex | null;
   gameOverReason: GameOverReason | null;
 }

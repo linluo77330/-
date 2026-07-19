@@ -8,7 +8,7 @@ import {
   tileIndex,
 } from './winCheck.js';
 
-export type WinGroupKind = 'pair' | 'triplet' | 'sequence' | 'seven_pair';
+export type WinGroupKind = 'pair' | 'triplet' | 'sequence' | 'seven_pair' | 'kong';
 
 export interface WinGroup {
   kind: WinGroupKind;
@@ -80,13 +80,22 @@ function decomposeMelds(pool: Tile[], numSets: number): WinGroup[] | null {
   const sorted = sortByIndex(pool);
   const first = sorted[0];
 
-  const tripletTaken = takeTiles(pool, first.suit, first.rank, 3);
+  const tripletTaken = takeTiles(pool, first.suit, first.rank, 4);
   if (tripletTaken) {
     const rest = decomposeMelds(pool, numSets - 1);
     if (rest) {
-      return [{ kind: 'triplet', tileIds: tripletTaken.map((t) => t.id) }, ...rest];
+      return [{ kind: 'kong', tileIds: tripletTaken.map((t) => t.id) }, ...rest];
     }
     restoreTiles(pool, tripletTaken);
+  }
+
+  const tripletTaken3 = takeTiles(pool, first.suit, first.rank, 3);
+  if (tripletTaken3) {
+    const rest = decomposeMelds(pool, numSets - 1);
+    if (rest) {
+      return [{ kind: 'triplet', tileIds: tripletTaken3.map((t) => t.id) }, ...rest];
+    }
+    restoreTiles(pool, tripletTaken3);
   }
 
   if (first.suit === 'wan' || first.suit === 'tong' || first.suit === 'tiao') {
@@ -386,6 +395,18 @@ function decomposeWinTiles(
   return decomposeStandard(allTiles, meldCount);
 }
 
+function meldsToWinGroups(melds: Meld[]): WinGroup[] {
+  return melds.map((meld) => {
+    if (meld.type === 'chi') {
+      return { kind: 'sequence' as const, tileIds: meld.tiles.map((t) => t.id) };
+    }
+    if (meld.type === 'kong') {
+      return { kind: 'kong' as const, tileIds: meld.tiles.map((t) => t.id) };
+    }
+    return { kind: 'triplet' as const, tileIds: meld.tiles.map((t) => t.id) };
+  });
+}
+
 /** 将可胡的 14 张牌拆成对子 / 刻子 / 顺子分组，用于 UI 展示 */
 export function getWinHandGroups(
   hand: Tile[],
@@ -397,9 +418,11 @@ export function getWinHandGroups(
 
   const winAlreadyInHand = hand.some((t) => t.id === winTile.id);
   const allTiles = winAlreadyInHand ? [...hand] : [...hand, winTile];
-  const groups = decomposeWinTiles(allTiles, melds.length, wildcard);
-  if (!groups) return null;
+  const handGroups = decomposeWinTiles(allTiles, melds.length, wildcard);
+  if (!handGroups) return null;
 
+  const meldGroups = meldsToWinGroups(melds);
+  const groups = [...meldGroups, ...handGroups];
   const pattern = groups.every((g) => g.kind === 'seven_pair') ? 'seven_pairs' : 'standard';
   return { pattern, groups };
 }

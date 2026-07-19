@@ -56,7 +56,7 @@ describe('cant read skill', () => {
     expect(after.players[0].discards.every((tile) => isUnreadableTile(tile))).toBe(true);
   });
 
-  it('庄家开局在出牌阶段也可发动技能', () => {
+  it('庄家首轮出牌阶段不能发动技能', () => {
     const game = new MahjongGame();
     game.start(0, [JUE_WANG_DE_WEN_MANG_ID, '', '', '']);
 
@@ -67,16 +67,7 @@ describe('cant read skill', () => {
 
     const internal = game as unknown as GameInternals;
     internal.players[0].hand = [t('wan', 3), t('tong', 5), t('tiao', 6)];
-    internal.deck = [t('tong', 1), t('tong', 2)];
 
-    expect(game.activateSkill(CANT_READ_SKILL_ID)).toBe(true);
-    expect(game.resolveSkillPick({ confirm: true })).toBe(true);
-
-    const after = game.getSnapshot();
-    expect(after.currentPlayer).toBe(1);
-    expect(after.phase).toBe('draw');
-    expect(after.players[0].discards).toHaveLength(1);
-    expect(after.players[0].discards[0].suit).toBe('wan');
-    expect(after.players[0].hand).toHaveLength(3);
+    expect(game.activateSkill(CANT_READ_SKILL_ID)).toBe(false);
   });
 });

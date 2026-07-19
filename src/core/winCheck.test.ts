@@ -59,6 +59,20 @@ describe('canWin', () => {
     expect(canWin(hand, melds, t('feng', 3))).toBe(true);
   });
 
+  it('有暗杠鸣牌时：手牌 11 + 杠 4 = 15 张可胡', () => {
+    const melds: Meld[] = [{
+      type: 'kong',
+      tiles: [t('wan', 2), t('wan', 2), t('wan', 2), t('wan', 2)],
+    }];
+    const hand = [
+      t('wan', 1), t('wan', 1), t('wan', 1),
+      t('tong', 4), t('tong', 5), t('tong', 6),
+      t('tiao', 7), t('tiao', 8), t('tiao', 9),
+      t('feng', 3),
+    ];
+    expect(canWin(hand, melds, t('feng', 3))).toBe(true);
+  });
+
   it('非胡：差一张', () => {
     const hand = [
       t('wan', 1), t('wan', 2), t('wan', 3),

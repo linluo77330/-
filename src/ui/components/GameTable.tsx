@@ -69,6 +69,7 @@ function OfflineGameTable({
     snapshot,
     start,
     discard,
+    declareConcealedKong,
     respondOption,
     pass,
     drawnTileId,
@@ -107,6 +108,7 @@ function OfflineGameTable({
       onActivateSkill={activateSkill}
       onSkillPick={skillPick}
       onSkillVote={skillVote}
+      onConcealedKong={declareConcealedKong}
       showStart
       headerCharacter={character}
       onExit={onExit}
@@ -129,6 +131,7 @@ function OnlineGameTable({
     gameLog,
     error,
     discard,
+    declareConcealedKong,
     respondOption,
     pass,
     drawWall,
@@ -167,6 +170,7 @@ function OnlineGameTable({
       onActivateSkill={activateSkill}
       onSkillPick={skillPick}
       onSkillVote={skillVote}
+      onConcealedKong={declareConcealedKong}
       showStart={false}
       headerOnline={{
         name: seatNames[humanPlayer] ?? '你',
@@ -213,6 +217,7 @@ interface GameTableLayoutProps {
   onActivateSkill?: (skillId: string) => void;
   onSkillPick?: (params: { tileId?: string; splitRanks?: [number, number]; confirm?: boolean }) => void;
   onSkillVote?: (params: { agree: boolean }) => void;
+  onConcealedKong?: (tile: Pick<TileType, 'suit' | 'rank'>) => void;
 }
 
 function GameTableLayout({
@@ -237,6 +242,7 @@ function GameTableLayout({
   onActivateSkill,
   onSkillPick,
   onSkillVote,
+  onConcealedKong,
 }: GameTableLayoutProps) {
   const [skillInfoTarget, setSkillInfoTarget] = useState<CharacterSkillInfoTarget | null>(null);
 
@@ -275,9 +281,11 @@ function GameTableLayout({
     view.phase === 'game_over' && view.winner !== null
       ? view.gameOverReason === 'skill_vote'
         ? `投票通过：${seatNames[view.winner] ?? PLAYER_NAMES[view.winner]} 获胜`
-        : view.winInfo
-          ? `胡牌：${seatNames[view.winner] ?? PLAYER_NAMES[view.winner]}`
-          : `获胜：${seatNames[view.winner] ?? PLAYER_NAMES[view.winner]}`
+        : view.gameOverReason === 'skill_steal'
+          ? `黑手窃取：${seatNames[view.winner] ?? PLAYER_NAMES[view.winner]} 获胜`
+          : view.winInfo
+            ? `胡牌：${seatNames[view.winner] ?? PLAYER_NAMES[view.winner]}`
+            : `获胜：${seatNames[view.winner] ?? PLAYER_NAMES[view.winner]}`
       : `当前：${seatNames[view.currentPlayer] ?? PLAYER_NAMES[view.currentPlayer]}`;
 
   return (
@@ -350,6 +358,7 @@ function GameTableLayout({
               position={position}
               name={seatNames[index] ?? PLAYER_NAMES[index]}
               characterId={view.playerCharacters[index]}
+              hasBlackHand={view.blackHandTarget === index}
               onCharacterAvatarClick={
                 view.playerCharacters[index]
                   ? () =>
@@ -393,7 +402,7 @@ function GameTableLayout({
             </div>
           </div>
 
-          {view.skillActivity && (
+          {view.skillModeActive && view.skillActivity && (
             <SkillActivityOverlay
               activity={view.skillActivity}
               viewer={humanPlayer}
@@ -421,6 +430,7 @@ function GameTableLayout({
         onPass={onPass}
         onDrawWall={onDrawWall}
         onActivateSkill={onActivateSkill}
+        onConcealedKong={onConcealedKong}
         showStart={showStart}
         humanDisplayName={seatNames[humanPlayer] ?? PLAYER_NAMES[humanPlayer]}
         onShowCharacterSkillInfo={(target) => showCharacterSkillInfo(target)}

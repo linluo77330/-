@@ -6,6 +6,7 @@ import type { PlayerIndex, ResponseAction, ResponseOption } from '@/core/types';
 const SYNC_EVENTS: GameEventName[] = [
   'game_start',
   'wildcard_reveal',
+  'wildcard_change',
   'game_over',
   'phase_change',
   'turn_change',
@@ -83,14 +84,27 @@ export function useMahjongGame() {
 
   const activateSkill = useCallback(
     (skillId: string) => {
-      game.activateSkill(skillId);
-      refresh();
+      try {
+        if (!game.activateSkill(skillId)) {
+          console.warn('技能发动失败', skillId);
+        }
+        refresh();
+      } catch (err) {
+        console.error(err);
+        refresh();
+      }
     },
     [game, refresh],
   );
 
   const skillPick = useCallback(
-    (params: { tileId?: string; splitRanks?: [number, number]; confirm?: boolean }) => {
+    (params: {
+      tileId?: string;
+      splitRanks?: [number, number];
+      confirm?: boolean;
+      targetPlayer?: PlayerIndex;
+      skip?: boolean;
+    }) => {
       try {
         game.resolveSkillPick(params);
         const snap = game.getSnapshot();
@@ -129,6 +143,19 @@ export function useMahjongGame() {
       game.discardCard(tileId);
     },
     [game],
+  );
+
+  const declareConcealedKong = useCallback(
+    (tile: Pick<import('@/core/types').Tile, 'suit' | 'rank'>) => {
+      try {
+        game.declareConcealedKong(tile);
+        refresh();
+      } catch (err) {
+        console.error(err);
+        refresh();
+      }
+    },
+    [game, refresh],
   );
 
   const respondOption = useCallback(
@@ -179,6 +206,7 @@ export function useMahjongGame() {
     skillPick,
     skillVote,
     discard,
+    declareConcealedKong,
     respond,
     respondOption,
     pass,

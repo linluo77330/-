@@ -1,4 +1,4 @@
-import { tilesEqual } from './deck.js';
+import { createSkillTile, tilesEqual } from './deck.js';
 import type { Tile, WildcardConfig } from './types.js';
 
 /** 白板（dragon rank 3） */
@@ -13,6 +13,17 @@ export function createWildcardConfig(indicator: Tile): WildcardConfig {
   return {
     indicator,
     wildcardType: { suit: indicator.suit, rank: indicator.rank },
+  };
+}
+
+/** 技能等：用新牌型替换场上万能牌展示与判定 */
+export function replaceWildcardDisplay(
+  wildcard: WildcardConfig,
+  newType: Pick<Tile, 'suit' | 'rank'>,
+): WildcardConfig {
+  return {
+    indicator: createSkillTile(newType.suit, newType.rank),
+    wildcardType: { suit: newType.suit, rank: newType.rank },
   };
 }
 

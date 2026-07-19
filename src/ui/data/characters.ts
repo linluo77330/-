@@ -82,11 +82,79 @@ export const DUI_KANG_LU_GALUO: Character = {
   },
 };
 
+export const LING_SHI_DA_ZONG_TONG: Character = {
+  id: 'ling_shi_da_zong_tong',
+  name: '零食大总统',
+  tagline: '窃取胜利果实',
+  description: '零食大总统擅长窃取胜利果实，要小心ta的黑手！',
+  accent: '#c45c26',
+  skill: {
+    id: 'steal_victory',
+    name: '窃取胜利果实',
+    description:
+      '摸牌后、出牌前，可点击技能按钮指定一名玩家对其使用「黑手」（可选）。若该玩家在其下一个自己的回合内胡牌，则从牌墙判定一张：若不是东、西、南、北、中、發，则视为零食大总统胡牌。',
+    maxUses: 0,
+    limited: false,
+  },
+};
+
+export const CAI_SHEN_A_YI: Character = {
+  id: 'cai_shen_a_yi',
+  name: '财神阿姨',
+  tagline: '到了 到了 到了 新财神请到西南门外左手边取',
+  description: '到了 到了 到了 新财神请到西南门外左手边取',
+  accent: '#c9a227',
+  skill: {
+    id: 'vegetable_juice_caishen',
+    name: '（限定技）蔬菜汁财神',
+    description:
+      '摸牌结束后，可以选择自己的一张手牌替换现有万能牌，并获得原有万能牌。该技能只能使用一次。',
+    maxUses: 1,
+    limited: true,
+  },
+};
+
+export const JIE_DONG_XI_ZHI_REN: Character = {
+  id: 'jie_dong_xi_zhi_ren',
+  name: '借东西之人',
+  tagline: '有借有还 再借不难 什么时候还呢？下次吧。',
+  description: '有借有还 再借不难 什么时候还呢？下次吧。',
+  accent: '#5b6eae',
+  skill: {
+    id: 'borrow_tile',
+    name: '（限定技）同学这个借我用一下',
+    description:
+      '摸牌结束后，可以选择自己的一张手牌并指定一位玩家，将自己选择的牌和该玩家随机一张牌互换。该技能只能使用一次。',
+    maxUses: 1,
+    limited: true,
+  },
+};
+
+export const WEN_QU_XING_Y: Character = {
+  id: 'wen_qu_xing_y',
+  name: '文曲星Y',
+  tagline: '为什么不来一个文曲星 可以改某些万字的数 一二三',
+  description: '为什么不来一个文曲星 可以改某些万字的数 一二三',
+  accent: '#2e6b8a',
+  skill: {
+    id: 'wen_qu_descends',
+    name: '（限定技）文曲下凡',
+    description:
+      '摸牌结束后，可以选择自己的一张万字牌，将其修改为任意一张万字牌。该技能只能使用三次。',
+    maxUses: 3,
+    limited: true,
+  },
+};
+
 export const CHARACTERS: Character[] = [
   SHOU_DUAN_ZHE,
   HEI_PI_TI_YU_SHENG,
   JUE_WANG_DE_WEN_MANG,
   DUI_KANG_LU_GALUO,
+  LING_SHI_DA_ZONG_TONG,
+  CAI_SHEN_A_YI,
+  JIE_DONG_XI_ZHI_REN,
+  WEN_QU_XING_Y,
 ];
 
 export function getCharacterById(id: string): Character | undefined {

@@ -49,6 +49,51 @@ import {
   INSTANT_WIN_VOTE_SKILL_NAME,
   isDuiKangLuGaluo,
 } from './skills/instantWinVote.js';
+import {
+  LING_SHI_DA_ZONG_TONG_ID,
+  STEAL_VICTORY_SKILL_DESC,
+  STEAL_VICTORY_SKILL_ID,
+  STEAL_VICTORY_SKILL_NAME,
+  buildStealVictoryActivity,
+  canPlayerUseStealVictorySkill,
+  canUseStealVictory,
+  isLingShiDaZongTong,
+} from './skills/stealVictory.js';
+import {
+  CAI_SHEN_A_YI_ID,
+  VEGETABLE_JUICE_CAISHEN_MAX_USES,
+  VEGETABLE_JUICE_CAISHEN_SKILL_DESC,
+  VEGETABLE_JUICE_CAISHEN_SKILL_ID,
+  VEGETABLE_JUICE_CAISHEN_SKILL_NAME,
+  buildVegetableJuiceCaishenActivity,
+  canPlayerUseVegetableJuiceCaishenSkill,
+  canUseVegetableJuiceCaishen,
+  getVegetableJuiceCaishenUsesRemaining,
+  isCaiShenAYi,
+} from './skills/vegetableJuiceCaishen.js';
+import {
+  BORROW_TILE_MAX_USES,
+  BORROW_TILE_SKILL_DESC,
+  BORROW_TILE_SKILL_ID,
+  BORROW_TILE_SKILL_NAME,
+  JIE_DONG_XI_ZHI_REN_ID,
+  buildBorrowTileActivity,
+  canPlayerUseBorrowTileSkill,
+  canUseBorrowTile,
+  getBorrowTileUsesRemaining,
+  isJieDongXiZhiRen,
+} from './skills/borrowTile.js';
+import {
+  WEN_QU_DESCENDS_MAX_USES,
+  WEN_QU_DESCENDS_SKILL_DESC,
+  WEN_QU_DESCENDS_SKILL_ID,
+  WEN_QU_DESCENDS_SKILL_NAME,
+  WEN_QU_XING_Y_ID,
+  buildWenQuDescendsActivity,
+  canUseWenQuDescends,
+  getWenQuDescendsUsesRemaining,
+  isWenQuXingY,
+} from './skills/wenQuDescends.js';
 
 function cloneMeld(meld: GameSnapshot['players'][0]['melds'][0]) {
   return {
@@ -141,6 +186,62 @@ function buildSkillView(snapshot: GameSnapshot, viewer: PlayerIndex): SkillViewS
     };
   }
 
+  if (isLingShiDaZongTong(characterId)) {
+    return {
+      characterId: LING_SHI_DA_ZONG_TONG_ID,
+      skillId: STEAL_VICTORY_SKILL_ID,
+      skillName: STEAL_VICTORY_SKILL_NAME,
+      skillDescription: STEAL_VICTORY_SKILL_DESC,
+      usesRemaining: 0,
+      maxUses: 0,
+      limited: false,
+      canActivate: isMyDiscard && canUseStealVictory(snapshot, viewer),
+      activatePhase: 'discard',
+    };
+  }
+
+  if (isCaiShenAYi(characterId)) {
+    return {
+      characterId: CAI_SHEN_A_YI_ID,
+      skillId: VEGETABLE_JUICE_CAISHEN_SKILL_ID,
+      skillName: VEGETABLE_JUICE_CAISHEN_SKILL_NAME,
+      skillDescription: VEGETABLE_JUICE_CAISHEN_SKILL_DESC,
+      usesRemaining: getVegetableJuiceCaishenUsesRemaining(snapshot.skillUses, viewer),
+      maxUses: VEGETABLE_JUICE_CAISHEN_MAX_USES,
+      limited: true,
+      canActivate: isMyDiscard && canUseVegetableJuiceCaishen(snapshot, viewer),
+      activatePhase: 'discard',
+    };
+  }
+
+  if (isJieDongXiZhiRen(characterId)) {
+    return {
+      characterId: JIE_DONG_XI_ZHI_REN_ID,
+      skillId: BORROW_TILE_SKILL_ID,
+      skillName: BORROW_TILE_SKILL_NAME,
+      skillDescription: BORROW_TILE_SKILL_DESC,
+      usesRemaining: getBorrowTileUsesRemaining(snapshot.skillUses, viewer),
+      maxUses: BORROW_TILE_MAX_USES,
+      limited: true,
+      canActivate: isMyDiscard && canUseBorrowTile(snapshot, viewer),
+      activatePhase: 'discard',
+    };
+  }
+
+  if (isWenQuXingY(characterId)) {
+    return {
+      characterId: WEN_QU_XING_Y_ID,
+      skillId: WEN_QU_DESCENDS_SKILL_ID,
+      skillName: WEN_QU_DESCENDS_SKILL_NAME,
+      skillDescription: WEN_QU_DESCENDS_SKILL_DESC,
+      usesRemaining: getWenQuDescendsUsesRemaining(snapshot.skillUses, viewer),
+      maxUses: WEN_QU_DESCENDS_MAX_USES,
+      limited: true,
+      canActivate: isMyDiscard && canUseWenQuDescends(snapshot, viewer),
+      activatePhase: 'discard',
+    };
+  }
+
   return null;
 }
 
@@ -149,6 +250,10 @@ function buildSkillActivity(snapshot: GameSnapshot, viewer: PlayerIndex) {
     buildLetMeDrawActivity(snapshot, viewer) ??
     buildCantReadActivity(snapshot, viewer) ??
     buildInstantWinVoteActivity(snapshot, viewer) ??
+    buildStealVictoryActivity(snapshot, viewer) ??
+    buildVegetableJuiceCaishenActivity(snapshot, viewer) ??
+    buildBorrowTileActivity(snapshot, viewer) ??
+    buildWenQuDescendsActivity(snapshot, viewer) ??
     buildSplitTileActivity(snapshot, viewer)
   );
 }
@@ -194,7 +299,7 @@ function patchPlayerCharacters(
 ): PlayerView['playerCharacters'] {
   const playerCharacters = [...(raw ?? ['', '', '', ''])] as PlayerView['playerCharacters'];
 
-  if (options?.viewerCharacterId && !playerCharacters[viewer]) {
+  if (options?.viewerCharacterId) {
     playerCharacters[viewer] = options.viewerCharacterId;
   }
 
@@ -241,6 +346,23 @@ function playerStateViewToRaw(state: PlayerStateView): GameSnapshot['players'][0
   };
 }
 
+/** 联机客户端重算技能时：隐藏手牌保留张数，供「借牌」等目标判定 */
+function playerStateViewToRawForSkillCheck(state: PlayerStateView): GameSnapshot['players'][0] {
+  const hand =
+    state.hand.kind === 'visible'
+      ? state.hand.tiles.map((t) => ({ ...t }))
+      : Array.from({ length: state.hand.count }, (_, index) => ({
+          id: `hidden-hand-${index}`,
+          suit: 'wan' as const,
+          rank: 1,
+        }));
+  return {
+    hand,
+    discards: state.discards.map((t) => ({ ...t })),
+    melds: state.melds.map((m) => ({ ...m, tiles: m.tiles.map((t) => ({ ...t })) })),
+  };
+}
+
 function cloneSkillMode(mode: GameSnapshot['skillMode']): SkillMode | null {
   if (!mode) return null;
   if (mode.skillId === 'split_tile' && mode.step === 'pick_keep') {
@@ -258,11 +380,8 @@ function cloneSkillMode(mode: GameSnapshot['skillMode']): SkillMode | null {
 
 /** 联机客户端：重算 skill.canActivate；用 skillMode 重建 skillActivity */
 export function refreshPlayerViewSkills(view: PlayerView): PlayerView {
-  const skillMode =
-    view.skillMode ??
-    (view.skillModeActive && view.skillActivity
-      ? ({ skillId: view.skillActivity.skillId, step: view.skillActivity.step } as GameSnapshot['skillMode'])
-      : null);
+  const skillMode = view.skillMode ?? null;
+  const skillModeActive = skillMode !== null;
 
   const snapshot = {
     phase: view.phase,
@@ -271,18 +390,20 @@ export function refreshPlayerViewSkills(view: PlayerView): PlayerView {
     turnNumber: view.turnNumber,
     drawMode: view.drawMode,
     skillMode,
+    wildcard: view.wildcard,
     playerCharacters: view.playerCharacters,
     skillUses: view.skillUses,
-    players: view.players.map(playerStateViewToRaw) as GameSnapshot['players'],
+    players: view.players.map(playerStateViewToRawForSkillCheck) as GameSnapshot['players'],
   } as GameSnapshot;
 
-  const skillActivity = view.skillModeActive
-    ? buildSkillActivity(snapshot, view.viewer) ?? view.skillActivity
+  const skillActivity = skillModeActive
+    ? buildSkillActivity(snapshot, view.viewer)
     : null;
 
   return {
     ...view,
     skillMode,
+    skillModeActive,
     skill: buildSkillView(snapshot, view.viewer),
     skillActivity,
   };
@@ -316,10 +437,11 @@ export function normalizePlayerView(
     playerCharacters,
     skillUses: raw.skillUses ?? [0, 0, 0, 0],
     drawMode: raw.drawMode ?? null,
-    skillModeActive: raw.skillModeActive ?? raw.skillActivity != null,
+    skillModeActive: raw.skillMode != null,
     skillMode: raw.skillMode ?? null,
     skill: raw.skill ?? null,
-    skillActivity: raw.skillActivity ?? null,
+    skillActivity: null,
+    blackHandTarget: raw.blackHandTarget ?? null,
     gameOverReason: raw.gameOverReason ?? null,
   };
 
@@ -371,6 +493,8 @@ export function buildPlayerView(snapshot: GameSnapshot, viewer: PlayerIndex): Pl
     skillMode: cloneSkillMode(snapshot.skillMode),
     skill: buildSkillView(snapshot, viewer),
     skillActivity: buildSkillActivity(snapshot, viewer),
+    blackHandTarget:
+      snapshot.blackHandOwner === viewer ? snapshot.blackHandTarget : null,
     gameOverReason: snapshot.gameOverReason,
   };
 }

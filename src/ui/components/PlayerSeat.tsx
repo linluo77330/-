@@ -48,6 +48,7 @@ interface PlayerSeatProps {
   position: SeatPosition;
   name: string;
   characterId?: string;
+  hasBlackHand?: boolean;
   onCharacterAvatarClick?: () => void;
   wildcard: WildcardConfig | null;
   highlightTileId?: string | null;
@@ -64,6 +65,7 @@ export function PlayerSeat({
   position,
   name,
   characterId = '',
+  hasBlackHand = false,
   onCharacterAvatarClick,
   wildcard,
   highlightTileId,
@@ -95,6 +97,7 @@ export function PlayerSeat({
         <span className="player-seat__name">{name}</span>
         {isWinner && <span className="player-seat__winner">胡</span>}
         {isDealer && <span className="player-seat__dealer">庄</span>}
+        {hasBlackHand && <span className="player-seat__black-hand">黑手</span>}
         {!isHuman && hiddenCount > 0 && (
           <span className="player-seat__count">{hiddenCount} 张</span>
         )}

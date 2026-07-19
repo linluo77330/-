@@ -1,4 +1,7 @@
 import type { PlayerIndex, SkillActivityView, Suit, Tile as TileType } from '@/core/types';
+import { STEAL_VICTORY_SKILL_ID } from '@/core/skills/stealVictory';
+import { BORROW_TILE_SKILL_ID } from '@/core/skills/borrowTile';
+import { WEN_QU_DESCENDS_SKILL_ID } from '@/core/skills/wenQuDescends';
 import { getCharacterById } from '../data/characters';
 import { tileLabel } from '../utils/tileLabels';
 import { Tile } from './Tile';
@@ -7,7 +10,13 @@ interface SkillActivityOverlayProps {
   activity: SkillActivityView;
   viewer: PlayerIndex;
   seatNames: string[];
-  onSkillPick?: (params: { tileId?: string; splitRanks?: [number, number]; confirm?: boolean }) => void;
+  onSkillPick?: (params: {
+    tileId?: string;
+    splitRanks?: [number, number];
+    confirm?: boolean;
+    targetPlayer?: PlayerIndex;
+    skip?: boolean;
+  }) => void;
   onSkillVote?: (params: { agree: boolean }) => void;
 }
 
@@ -69,6 +78,13 @@ export function SkillActivityOverlay({
           : '请选择拆分方式';
       case 'pick_keep':
         return '请选择要保留的一张牌';
+      case 'pick_target':
+        if (activity.skillId === BORROW_TILE_SKILL_ID) return '选择要借牌的玩家';
+        return '请选择要使用黑手的玩家';
+      case 'pick_hand':
+        return activity.wildcardPrompt ?? '选择一张手牌';
+      case 'pick_wan_rank':
+        return '选择改写后的万字牌';
       case 'confirm':
         if (activity.votePrompt) return activity.votePrompt;
         return activity.drawPreviewCount !== undefined
@@ -139,6 +155,63 @@ export function SkillActivityOverlay({
           <>
             {prompt && <p className="skill-overlay__prompt">{prompt}</p>}
 
+            {activity.step === 'pick_target' && (
+              <>
+                {(activity.previewTiles?.length ?? 0) > 0 && (
+                  <div className="skill-overlay__wildcard-preview">
+                    <span className="skill-overlay__wildcard-label">
+                      {activity.skillId === BORROW_TILE_SKILL_ID ? '借出的牌' : '预览'}
+                    </span>
+                    <div className="skill-overlay__tiles">
+                      {activity.previewTiles!.map((tile) => (
+                        <div
+                          key={tile.id}
+                          className="skill-overlay__tile-wrap skill-overlay__tile-wrap--preview"
+                        >
+                          <Tile
+                            tile={tile}
+                            size="md"
+                            isWildcard={
+                              activity.skillId !== BORROW_TILE_SKILL_ID &&
+                              activity.previewTiles!.length === 1
+                            }
+                          />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {(() => {
+                  const targets =
+                    activity.pickableTargets ??
+                    ([0, 1, 2, 3] as PlayerIndex[]).filter((p) => p !== activity.player);
+                  return targets.length > 0 ? (
+                    <div className="skill-overlay__targets">
+                      {targets.map((target) => (
+                        <button
+                          key={target}
+                          type="button"
+                          className="btn btn--ghost skill-overlay__target-btn"
+                          onClick={() => onSkillPick?.({ targetPlayer: target })}
+                        >
+                          {seatNames[target] ?? `玩家 ${target}`}
+                        </button>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="skill-overlay__empty">暂无可选目标</p>
+                  );
+                })()}
+                <button
+                  type="button"
+                  className="btn btn--ghost skill-overlay__skip"
+                  onClick={() => onSkillPick?.({ skip: true })}
+                >
+                  {activity.skillId === BORROW_TILE_SKILL_ID ? '取消' : '跳过'}
+                </button>
+              </>
+            )}
+
             {activity.step === 'pick_discard' && (
               <>
                 {(activity.pickableDiscards?.length ?? 0) > 0 ? (
@@ -179,6 +252,91 @@ export function SkillActivityOverlay({
               </>
             )}
 
+            {activity.step === 'pick_hand' && (
+              <>
+                {(activity.previewTiles?.length ?? 0) > 0 && (
+                  <div className="skill-overlay__wildcard-preview">
+                    <span className="skill-overlay__wildcard-label">当前万能牌</span>
+                    <div className="skill-overlay__tiles">
+                      {activity.previewTiles!.map((tile) => (
+                        <div
+                          key={tile.id}
+                          className="skill-overlay__tile-wrap skill-overlay__tile-wrap--preview"
+                        >
+                          <Tile tile={tile} size="md" isWildcard />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {(activity.pickableHandTiles?.length ?? 0) > 0 ? (
+                  <div className="skill-overlay__tiles">
+                    {activity.pickableHandTiles!.map((tile) => (
+                      <div key={tile.id} className="skill-overlay__tile-wrap">
+                        <Tile
+                          tile={tile}
+                          size="md"
+                          onClick={() => onSkillPick?.({ tileId: tile.id })}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="skill-overlay__empty">
+                    {activity.skillId === BORROW_TILE_SKILL_ID
+                      ? '没有可借出的手牌'
+                      : activity.skillId === WEN_QU_DESCENDS_SKILL_ID
+                        ? '没有可改写的万字牌'
+                        : '没有可替换的手牌'}
+                  </p>
+                )}
+                <button
+                  type="button"
+                  className="btn btn--ghost skill-overlay__skip"
+                  onClick={() => onSkillPick?.({ skip: true })}
+                >
+                  取消
+                </button>
+              </>
+            )}
+
+            {activity.step === 'pick_wan_rank' && (
+              <>
+                {activity.sourceTile && (
+                  <div className="skill-overlay__wildcard-preview">
+                    <span className="skill-overlay__wildcard-label">原万字牌</span>
+                    <div className="skill-overlay__tiles">
+                      <div className="skill-overlay__tile-wrap skill-overlay__tile-wrap--preview">
+                        <Tile tile={activity.sourceTile} size="md" />
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {(activity.previewTiles?.length ?? 0) > 0 ? (
+                  <div className="skill-overlay__tiles">
+                    {activity.previewTiles!.map((tile) => (
+                      <div key={tile.id} className="skill-overlay__tile-wrap">
+                        <Tile
+                          tile={tile}
+                          size="md"
+                          onClick={() => onSkillPick?.({ tileId: tile.id })}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="skill-overlay__empty">没有可选万字牌</p>
+                )}
+                <button
+                  type="button"
+                  className="btn btn--ghost skill-overlay__skip"
+                  onClick={() => onSkillPick?.({ skip: true })}
+                >
+                  取消
+                </button>
+              </>
+            )}
+
             {activity.step === 'pick_split' && (
               <>
                 {(activity.splitOptions?.length ?? 0) > 0 && activity.sourceTile ? (
@@ -213,7 +371,8 @@ export function SkillActivityOverlay({
               </div>
             )}
 
-            {activity.step === 'confirm' && (
+            {activity.step === 'confirm' &&
+              activity.skillId !== STEAL_VICTORY_SKILL_ID && (
               <>
                 {(activity.previewTiles?.length ?? 0) > 0 && (
                   <div className="skill-overlay__tiles">
