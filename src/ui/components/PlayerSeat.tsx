@@ -15,21 +15,6 @@ import { ZoneFoldChip } from './ZoneFoldChip';
 
 type SeatPosition = 'bottom' | 'left' | 'top' | 'right';
 
-function riverSizeForHand(handSize: TileSize): TileSize {
-  switch (handSize) {
-    case 'xl':
-      return 'lg';
-    case 'lg':
-      return 'md';
-    case 'md':
-      return 'sm';
-    case 'sm':
-      return 'xs';
-    default:
-      return 'xs';
-  }
-}
-
 interface PlayerSeatProps {
   playerIndex: PlayerIndex;
   state: PlayerStateView;
@@ -96,7 +81,7 @@ export function PlayerSeat({
   const stackSize: TileSize = isSide ? 'xs' : 'sm';
 
   const humanHandSize: TileSize = landscapeMobile ? 'sm' : compact ? 'md' : 'lg';
-  const humanRiverSize = riverSizeForHand(humanHandSize);
+  const humanRiverSize: TileSize = 'xs';
   const mobileHandLayout = compact || landscapeMobile;
   const bannerTileSize: TileSize = mobileHandLayout ? 'xs' : 'sm';
   const overlayTileSize: TileSize = 'sm';
@@ -168,8 +153,8 @@ export function PlayerSeat({
                     tiles={state.discards}
                     size={humanRiverSize}
                     spaced
-                    wrap={!mobileHandLayout}
-                    scrollHorizontal={mobileHandLayout}
+                    wrap={false}
+                    scrollHorizontal
                   />
                 ) : (
                   <span className="player-seat__river-empty">—</span>
@@ -182,6 +167,7 @@ export function PlayerSeat({
                 size={humanHandSize}
                 onTileClick={onTileClick}
                 spaced
+                wrap={mobileHandLayout}
                 wildcard={wildcard}
                 highlightTileId={highlightTileId}
                 selectedTileId={selectedDiscardTileId}

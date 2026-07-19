@@ -345,7 +345,7 @@ export class MahjongGame {
     return true;
   }
 
-  /** 发动「我看不懂啊」：进入确认丢弃带字牌 */
+  /** 发动「我看不懂啊」：立即弃全部带字牌并等量补摸 */
   activateCantReadSkill(): boolean {
     const player = this.currentPlayer;
     const snap = this.getSnapshot();
@@ -354,9 +354,7 @@ export class MahjongGame {
       return false;
     }
 
-    this.skillMode = { skillId: CANT_READ_SKILL_ID, step: 'confirm' };
-    this.events.emit('skill_pick_open', { player });
-    return true;
+    return this.executeCantReadSkill();
   }
 
   /** 发动「一秒四破」：进入确认发起投票 */
@@ -464,22 +462,9 @@ export class MahjongGame {
       return this.drawFromOwnDiscard(params.tileId) !== null;
     }
 
-    if (this.skillMode.skillId === CANT_READ_SKILL_ID) {
-      if (params.skip) {
-        this.skillMode = null;
-        return true;
-      }
-      if (!params.confirm) throw new Error('请确认发动技能');
-      return this.executeCantReadSkill();
-    }
-
     if (this.skillMode.skillId === INSTANT_WIN_VOTE_SKILL_ID) {
       if (this.skillMode.step !== 'confirm') {
         throw new Error('当前未在确认投票');
-      }
-      if (params.skip) {
-        this.skillMode = null;
-        return true;
       }
       if (!params.confirm) throw new Error('请确认发起投票');
       return this.startInstantWinVote();
@@ -939,21 +924,17 @@ export class MahjongGame {
 
   /** 执行「我看不懂啊」：弃全部带字牌、等量补摸、跳过出牌 */
   private executeCantReadSkill(): boolean {
+    this.assertPhase('draw');
     this.assertCurrentActor();
 
     const player = this.currentPlayer;
     const snap = this.getSnapshot();
-    if (!canUseCantRead(snap, player) && this.skillMode?.skillId !== CANT_READ_SKILL_ID) {
+    if (!canUseCantRead(snap, player)) {
       throw new Error('当前无法发动该技能');
     }
 
     if (!isJueWangDeWenMang(this.playerCharacters[player])) {
       throw new Error('该角色无法使用此技能');
-    }
-
-    const mode = this.skillMode;
-    if (!mode || mode.skillId !== CANT_READ_SKILL_ID || mode.step !== 'confirm') {
-      throw new Error('当前未在确认技能');
     }
 
     const hand = this.players[player].hand;

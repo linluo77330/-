@@ -48,26 +48,10 @@ export function canUseCantRead(
   return false;
 }
 
+/** cant_read 发动后立即执行，不再进入确认弹层 */
 export function buildCantReadActivity(
-  snapshot: GameSnapshot,
-  viewer: PlayerIndex,
+  _snapshot?: GameSnapshot,
+  _viewer?: PlayerIndex,
 ): SkillActivityView | null {
-  const mode = snapshot.skillMode;
-  if (!mode || mode.skillId !== CANT_READ_SKILL_ID || mode.step !== 'confirm') return null;
-
-  const player = snapshot.currentPlayer;
-  if (!isJueWangDeWenMang(snapshot.playerCharacters[player])) return null;
-
-  const unreadableTiles = getUnreadableTilesInHand(snapshot.players[player].hand);
-
-  return {
-    player,
-    characterId: JUE_WANG_DE_WEN_MANG_ID,
-    characterName: JUE_WANG_DE_WEN_MANG_NAME,
-    skillId: CANT_READ_SKILL_ID,
-    skillName: CANT_READ_SKILL_NAME,
-    step: 'confirm',
-    previewTiles: viewer === player ? unreadableTiles.map((t) => ({ ...t })) : [],
-    drawPreviewCount: unreadableTiles.length,
-  };
+  return null;
 }

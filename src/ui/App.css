@@ -917,48 +917,6 @@ body {
   border-color: rgba(179, 36, 40, 0.18);
 }
 
-.center-info__last--skill-preview {
-  background: rgba(255, 248, 220, 0.72);
-  border-color: rgba(212, 160, 23, 0.35);
-  flex-direction: column;
-  align-items: stretch;
-  justify-content: center;
-  gap: 0.12rem;
-  padding: 0.28rem 0.4rem;
-  min-height: 58px;
-  max-height: 58px;
-}
-
-.center-info__skill-preview {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.1rem;
-  width: 100%;
-  min-width: 0;
-}
-
-.center-info__skill-preview-label {
-  font-size: 0.62rem;
-  font-weight: 700;
-  color: #8b6914;
-  line-height: 1.1;
-  white-space: nowrap;
-}
-
-.center-info__skill-preview-tiles {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 3px;
-  overflow-x: auto;
-  overflow-y: hidden;
-  max-width: 100%;
-  width: 100%;
-  -webkit-overflow-scrolling: touch;
-  scrollbar-width: thin;
-  justify-content: flex-start;
-}
-
 .center-info__waiting {
   margin-top: 0.35rem;
   font-size: 0.75rem;
@@ -1258,42 +1216,6 @@ body {
 
 .skill-overlay__vote-item--pending {
   opacity: 0.65;
-}
-
-@media (max-width: 768px) {
-  .skill-overlay {
-    position: fixed;
-    inset: 0;
-    z-index: 200;
-  }
-
-  .skill-overlay__panel {
-    width: min(320px, calc(100vw - 1.5rem));
-    max-height: min(78dvh, calc(100dvh - 1.5rem));
-    overflow-y: auto;
-    padding: 0.85rem 0.9rem 0.95rem;
-  }
-
-  .skill-overlay__prompt,
-  .skill-overlay__waiting,
-  .skill-overlay__empty {
-    font-size: 0.78rem;
-    margin-bottom: 0.55rem;
-  }
-
-  .skill-overlay__tiles {
-    gap: 0.35rem;
-    max-height: min(42dvh, 240px);
-    overflow-y: auto;
-    overflow-x: hidden;
-    -webkit-overflow-scrolling: touch;
-    align-content: flex-start;
-  }
-
-  .skill-overlay__confirm {
-    width: 100%;
-    margin-top: 0.15rem;
-  }
 }
 
 .game-log__entry--skill .game-log__skill-name {
@@ -1734,15 +1656,18 @@ button.seat-turn-banner.seat-turn-banner--skill-ready:hover {
 
 .player-seat__river-strip {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 0.35rem;
   width: 100%;
-  padding: 0.22rem 0.35rem;
+  padding: 0.3rem 0.35rem;
   border-radius: 7px;
   background: rgba(230, 245, 255, 0.92);
   border: 1px solid rgba(60, 120, 180, 0.3);
-  min-height: 34px;
+  height: 42px;
+  max-height: 42px;
+  min-height: 42px;
   box-sizing: border-box;
+  overflow: hidden;
 }
 
 .player-seat__river-label {
@@ -1752,22 +1677,34 @@ button.seat-turn-banner.seat-turn-banner--skill-ready:hover {
   opacity: 0.55;
   letter-spacing: 0.05em;
   line-height: 1;
-  padding-top: 0.2rem;
+  padding-top: 0;
 }
 
 .player-seat__river-body {
   flex: 1 1 auto;
   min-width: 0;
   display: flex;
-  align-items: flex-end;
+  align-items: center;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
 }
 
 .player-seat__river-body .tile-row {
+  flex-wrap: nowrap;
   justify-content: flex-start;
 }
 
 .player-seat__river-body .tile-row--spaced.tile-row--horizontal {
-  gap: 4px;
+  gap: 3px;
+}
+
+.player-seat__river-body .tile {
+  padding: 1px;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.75),
+    0 1px 3px var(--tile-shadow);
 }
 
 .player-seat__river-empty {
@@ -1836,6 +1773,10 @@ button.seat-turn-banner.seat-turn-banner--skill-ready:hover {
 
 .player-seat--mobile-hand-layout .player-seat__river-strip {
   align-items: center;
+  height: 44px;
+  max-height: 44px;
+  min-height: 44px;
+  padding: 0.32rem 0.35rem;
 }
 
 .player-seat--mobile-hand-layout .player-seat__river-body {
@@ -3071,16 +3012,6 @@ button.seat-turn-banner.seat-turn-banner--skill-ready:hover {
   .center-info__wildcard-desc {
     font-size: 0.58rem;
     max-width: 110px;
-  }
-
-  .center-info__last--skill-preview {
-    min-height: 52px;
-    max-height: 52px;
-    padding: 0.22rem 0.3rem;
-  }
-
-  .center-info__skill-preview-label {
-    font-size: 0.58rem;
   }
 
   .player-seat {
