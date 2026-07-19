@@ -15,6 +15,7 @@ interface TileRowProps {
   handColumns?: 2;
   handRows?: 2;
   scrollHorizontal?: boolean;
+  wrap?: boolean;
   wildcard?: WildcardConfig | null;
   highlightTileId?: string | null;
   selectedTileId?: string | null;
@@ -41,6 +42,7 @@ export function TileRow({
   handColumns,
   handRows,
   scrollHorizontal = false,
+  wrap = false,
   wildcard,
   highlightTileId,
   selectedTileId = null,
@@ -58,6 +60,7 @@ export function TileRow({
     handColumns === 2 ? 'tile-row--hand-2col' : '',
     handRows === 2 ? 'tile-row--hand-2row' : '',
     scrollHorizontal ? 'tile-row--scroll-x' : '',
+    wrap ? 'tile-row--wrap' : '',
     winHandDisplay ? 'tile-row--win-grouped' : '',
   ]
     .filter(Boolean)

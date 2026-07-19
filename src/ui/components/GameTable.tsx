@@ -414,7 +414,7 @@ function GameTableLayout({
               turnIndicator={getSeatTurnIndicator(view, index, seatNames, discardSegment, humanPlayer)}
               onRespond={index === humanPlayer ? onRespond : undefined}
               onPass={index === humanPlayer ? onPass : undefined}
-              showResponseActions={index === humanPlayer && view.phase === 'response'}
+              showResponseActions={false}
               onCharacterAvatarClick={
                 view.playerCharacters[index]
                   ? () =>
@@ -471,11 +471,13 @@ function GameTableLayout({
               <div className={`center-info__turn ${view.phase === 'response' ? 'center-info__turn--response' : ''}`}>
                 {centerTurnLabel}
               </div>
-              {view.phase === 'response' && view.lastDiscard && (
-                <div className="center-info__last">
+              <div
+                className={`center-info__last ${view.phase === 'response' ? 'center-info__last--active' : ''}`}
+              >
+                {view.phase === 'response' && view.lastDiscard ? (
                   <Tile tile={view.lastDiscard.tile} size="md" />
-                </div>
-              )}
+                ) : null}
+              </div>
             </div>
           </div>
 

@@ -1,43 +1,32 @@
-import type { Meld, PlayerIndex, PlayerStateView, ResponseOption, Tile as TileType, WildcardConfig } from '@/core/types';
+import { useState } from 'react';
+import type { PlayerIndex, PlayerStateView, ResponseOption, Tile as TileType, WildcardConfig } from '@/core/types';
 import type { WinHandDisplay } from '@/core/winDecompose';
 import { useCompactLayout } from '../hooks/useCompactLayout';
 import type { SeatTurnIndicator } from '../utils/turnIndicators';
 import { resolveHandTiles } from '../utils/handView';
+import { HiddenHandStack } from './HiddenHandStack';
 import { PlayerCharacterAvatar } from './PlayerCharacterAvatar';
+import { PlayerZoneOverlay } from './PlayerZoneOverlay';
 import { SeatTurnBanner } from './SeatTurnBanner';
-import { Tile, type TileSize } from './Tile';
 import { TileRow } from './TileRow';
+import type { TileOrientation, TileSize } from './Tile';
+import { ZoneFoldChip } from './ZoneFoldChip';
 
 type SeatPosition = 'bottom' | 'left' | 'top' | 'right';
 
-interface MeldGroupProps {
-  melds: Meld[];
-  size?: TileSize;
-}
-
-export function MeldGroup({ melds, size = 'xs' }: MeldGroupProps) {
-  return (
-    <div className="meld-group">
-      {melds.map((meld, i) => (
-        <div key={`${meld.type}-${i}`} className={`meld-group__item meld-group__item--${meld.type}`}>
-          <div className="meld-group__tiles">
-            {meld.tiles.map((tile, ti) => {
-              const isClaimed =
-                meld.type !== 'kong' && ti === meld.tiles.length - 1 && meld.fromPlayer !== undefined;
-              return (
-                <div
-                  key={tile.id}
-                  className={`meld-group__tile ${isClaimed ? 'meld-group__tile--claimed' : ''}`}
-                >
-                  <Tile tile={tile} size={size} />
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
+function riverSizeForHand(handSize: TileSize): TileSize {
+  switch (handSize) {
+    case 'xl':
+      return 'lg';
+    case 'lg':
+      return 'md';
+    case 'md':
+      return 'sm';
+    case 'sm':
+      return 'xs';
+    default:
+      return 'xs';
+  }
 }
 
 interface PlayerSeatProps {
@@ -90,20 +79,24 @@ export function PlayerSeat({
   onConfirmDiscard,
   onClearDiscardSelection,
 }: PlayerSeatProps) {
-  const { compact, narrow, landscapeMobile } = useCompactLayout();
+  const { compact, landscapeMobile } = useCompactLayout();
   const { tiles: handTiles, faceDown } = resolveHandTiles(state.hand);
   const isSide = position === 'left' || position === 'right';
-  const riverCols: 3 | 6 = isSide ? 3 : 6;
-  const hiddenCount = state.hand.kind === 'hidden' ? state.hand.count : 0;
-  const humanHandSize = landscapeMobile ? 'md' : compact ? (narrow ? 'sm' : 'md') : 'lg';
-  const opponentHandSize = landscapeMobile ? 'sm' : compact ? 'xs' : 'sm';
-  const meldSize: TileSize = 'xs';
-  const riverSize: TileSize = landscapeMobile ? 'xs' : compact ? 'sm' : 'xs';
-  const useRiverScroll = compact && !landscapeMobile;
-  const sideHandColumns = isSide && (!compact || landscapeMobile) ? 2 : undefined;
+  const hiddenCount = state.hand.kind === 'hidden' ? state.hand.count : handTiles.length;
+  const stackOrientation: TileOrientation = isSide ? 'vertical' : 'horizontal';
+  const stackSize: TileSize = isSide ? 'xs' : 'sm';
+
+  const humanHandSize: TileSize = landscapeMobile ? 'sm' : compact ? 'md' : 'lg';
+  const humanRiverSize = riverSizeForHand(humanHandSize);
+  const overlayTileSize: TileSize = 'sm';
+
+  const [zoneOverlay, setZoneOverlay] = useState<'melds' | 'river' | null>(null);
+
+  const showOpponentReveal = !isHuman && !faceDown && winHandDisplay;
+
   return (
     <div
-      className={`player-seat player-seat--${position} ${isActive ? 'player-seat--active' : ''} ${isWinner ? 'player-seat--winner' : ''}`}
+      className={`player-seat player-seat--${position} ${isHuman ? 'player-seat--human' : ''} ${isActive ? 'player-seat--active' : ''} ${isWinner ? 'player-seat--winner' : ''}`}
     >
       <div className="player-seat__header">
         {characterId && (
@@ -116,14 +109,11 @@ export function PlayerSeat({
         {isWinner && <span className="player-seat__winner">胡</span>}
         {isDealer && <span className="player-seat__dealer">庄</span>}
         {hasBlackHand && <span className="player-seat__black-hand">黑手</span>}
-        {!isHuman && hiddenCount > 0 && (
-          <span className="player-seat__count">{hiddenCount} 张</span>
-        )}
       </div>
 
-      {turnIndicator && (
+      <div className="seat-status-dock">
         <SeatTurnBanner
-          indicator={turnIndicator}
+          indicator={turnIndicator ?? null}
           position={position}
           onRespond={onRespond}
           onPass={onPass}
@@ -132,68 +122,84 @@ export function PlayerSeat({
           onConfirmDiscard={onConfirmDiscard}
           onClearDiscardSelection={onClearDiscardSelection}
         />
-      )}
+      </div>
 
-      <div className="player-seat__zones">
-        <div className="player-seat__zone player-seat__zone--melds">
-          <span className="player-seat__zone-label">鸣牌</span>
-          <div className="player-seat__zone-body">
-            {state.melds.length > 0 ? (
-              <MeldGroup melds={state.melds} size={meldSize} />
-            ) : (
-              <span className="player-seat__zone-empty">—</span>
-            )}
-          </div>
+      <div className="player-seat__play-row">
+        <div className="player-seat__fold-chips">
+          <ZoneFoldChip
+            label="鸣"
+            count={state.melds.length}
+            tone="meld"
+            onClick={() => setZoneOverlay('melds')}
+          />
+          {!isHuman && (
+            <ZoneFoldChip
+              label="河"
+              count={state.discards.length}
+              tone="river"
+              onClick={() => setZoneOverlay('river')}
+            />
+          )}
         </div>
 
-        <div className="player-seat__zone player-seat__zone--river">
-          <span className="player-seat__zone-label">河牌</span>
-          <div className="player-seat__zone-body">
-            {state.discards.length > 0 ? (
-              <TileRow
-                tiles={state.discards}
-                size={riverSize}
-                grid={!useRiverScroll}
-                gridCols={riverCols}
-                scrollHorizontal={useRiverScroll}
-                maxTiles={useRiverScroll ? undefined : isSide ? 12 : 18}
-              />
-            ) : (
-              <span className="player-seat__zone-empty">—</span>
-            )}
-          </div>
-        </div>
-
-        <div className="player-seat__zone player-seat__zone--hand">
-          <span className="player-seat__zone-label">手牌</span>
-          <div className="player-seat__zone-body player-seat__hand-tiles">
-            {!faceDown ? (
+        {isHuman ? (
+          <div className="player-seat__hand-column">
+            <div className="player-seat__river-strip">
+              <span className="player-seat__river-label">河牌</span>
+              <div className="player-seat__river-body">
+                {state.discards.length > 0 ? (
+                  <TileRow tiles={state.discards} size={humanRiverSize} spaced wrap />
+                ) : (
+                  <span className="player-seat__river-empty">—</span>
+                )}
+              </div>
+            </div>
+            <div className="player-seat__hand-wrap player-seat__hand-wrap--human">
               <TileRow
                 tiles={handTiles}
-                size={isHuman || winHandDisplay ? humanHandSize : opponentHandSize}
-                onTileClick={isHuman ? onTileClick : undefined}
+                size={humanHandSize}
+                onTileClick={onTileClick}
                 spaced
-                handRows={isHuman && compact && !landscapeMobile ? 2 : undefined}
-                handColumns={!isHuman && isSide && (!compact || landscapeMobile) && !winHandDisplay ? sideHandColumns : undefined}
-                scrollHorizontal={!isHuman && compact && isSide && !landscapeMobile}
                 wildcard={wildcard}
                 highlightTileId={highlightTileId}
                 selectedTileId={selectedDiscardTileId}
                 winHandDisplay={winHandDisplay}
               />
-            ) : (
+            </div>
+          </div>
+        ) : (
+          <div className="player-seat__hand-wrap">
+            {showOpponentReveal ? (
               <TileRow
                 tiles={handTiles}
-                faceDown={faceDown}
-                size={opponentHandSize}
-                handColumns={sideHandColumns}
-                scrollHorizontal={compact && isSide && !landscapeMobile}
+                size="sm"
                 spaced
+                wrap
+                wildcard={wildcard}
+                highlightTileId={highlightTileId}
+                winHandDisplay={winHandDisplay}
+              />
+            ) : (
+              <HiddenHandStack
+                count={hiddenCount}
+                size={stackSize}
+                orientation={stackOrientation}
               />
             )}
           </div>
-        </div>
+        )}
       </div>
+
+      {zoneOverlay && (
+        <PlayerZoneOverlay
+          title={`${name} · ${zoneOverlay === 'melds' ? '鸣牌' : '河牌'}`}
+          kind={zoneOverlay}
+          melds={state.melds}
+          discards={state.discards}
+          tileSize={overlayTileSize}
+          onClose={() => setZoneOverlay(null)}
+        />
+      )}
     </div>
   );
 }

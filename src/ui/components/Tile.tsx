@@ -2,7 +2,7 @@ import type { Tile as TileType } from '@/core/types';
 import { tileLabel } from '../utils/tileLabels';
 import { getTileImageSrc, TILE_BACK_SRC } from '../utils/tileAssets';
 
-export type TileSize = 'xs' | 'sm' | 'md' | 'lg';
+export type TileSize = 'xs' | 'sm' | 'md' | 'lg' | 'xl';
 export type TileOrientation = 'horizontal' | 'vertical';
 
 interface TileProps {
@@ -22,6 +22,7 @@ const SIZE_MAP: Record<TileSize, { w: number; h: number }> = {
   sm: { w: 28, h: 38 },
   md: { w: 36, h: 49 },
   lg: { w: 46, h: 63 },
+  xl: { w: 56, h: 76 },
 };
 
 export function Tile({
