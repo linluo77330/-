@@ -12,6 +12,7 @@ import { SeatTurnBanner } from './SeatTurnBanner';
 import { TileRow } from './TileRow';
 import type { TileOrientation, TileSize } from './Tile';
 import { ZoneFoldChip } from './ZoneFoldChip';
+import { HpBadge } from './HpBadge';
 
 type SeatPosition = 'bottom' | 'left' | 'top' | 'right';
 
@@ -43,6 +44,9 @@ interface PlayerSeatProps {
   skillName?: string;
   onActivateSkill?: () => void;
   turnChoices?: SeatTurnChoice[];
+  hp?: number;
+  maxHp?: number;
+  eliminated?: boolean;
 }
 
 export function PlayerSeat({
@@ -72,6 +76,9 @@ export function PlayerSeat({
   skillName = '',
   onActivateSkill,
   turnChoices,
+  hp,
+  maxHp,
+  eliminated = false,
 }: PlayerSeatProps) {
   const { compact, landscapeMobile } = useCompactLayout();
   const { tiles: handTiles, faceDown } = resolveHandTiles(state.hand);
@@ -92,7 +99,7 @@ export function PlayerSeat({
 
   return (
     <div
-      className={`player-seat player-seat--${position} ${isHuman ? 'player-seat--human' : ''} ${isHuman && mobileHandLayout ? 'player-seat--mobile-hand-layout' : ''} ${isActive ? 'player-seat--active' : ''} ${isWinner ? 'player-seat--winner' : ''}`}
+      className={`player-seat player-seat--${position} ${isHuman ? 'player-seat--human' : ''} ${isHuman && mobileHandLayout ? 'player-seat--mobile-hand-layout' : ''} ${isActive ? 'player-seat--active' : ''} ${isWinner ? 'player-seat--winner' : ''} ${eliminated ? 'player-seat--eliminated' : ''}`}
     >
       <div className="player-seat__header">
         {characterId && (
@@ -100,6 +107,9 @@ export function PlayerSeat({
             characterId={characterId}
             onClick={onCharacterAvatarClick}
           />
+        )}
+        {maxHp !== undefined && hp !== undefined && (
+          <HpBadge current={hp} max={maxHp} eliminated={eliminated} compact />
         )}
         <span className="player-seat__name">{name}</span>
         {isWinner && <span className="player-seat__winner">胡</span>}

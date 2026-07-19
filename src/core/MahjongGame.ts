@@ -91,14 +91,6 @@ function emptyPlayer(): PlayerState {
   return { hand: [], discards: [], melds: [] };
 }
 
-function nextPlayer(current: PlayerIndex): PlayerIndex {
-  return ((current + 1) % PLAYER_COUNT) as PlayerIndex;
-}
-
-function leftOf(player: PlayerIndex): PlayerIndex {
-  return ((player + PLAYER_COUNT - 1) % PLAYER_COUNT) as PlayerIndex;
-}
-
 /**
  * MahjongGame — 事件驱动 + 状态机核心
  *
@@ -138,6 +130,23 @@ export class MahjongGame {
   private blackHandOwner: PlayerIndex | null = null;
   private blackHandJudgmentPending = false;
   private gameOverReason: GameOverReason | null = null;
+  private playerActive: [boolean, boolean, boolean, boolean] = [true, true, true, true];
+
+  private nextActivePlayer(current: PlayerIndex): PlayerIndex {
+    for (let i = 1; i <= PLAYER_COUNT; i++) {
+      const next = ((current + i) % PLAYER_COUNT) as PlayerIndex;
+      if (this.playerActive[next]) return next;
+    }
+    return current;
+  }
+
+  setPlayerActive(active: [boolean, boolean, boolean, boolean]): void {
+    this.playerActive = [...active] as [boolean, boolean, boolean, boolean];
+  }
+
+  isPlayerActive(player: PlayerIndex): boolean {
+    return this.playerActive[player];
+  }
 
   // ── 事件订阅（代理到内部 emitter）──────────────────────────
 
@@ -220,13 +229,28 @@ export class MahjongGame {
   start(
     dealer: PlayerIndex = 0,
     playerCharacters: [string, string, string, string] = ['', '', '', ''],
+    options?: { playerActive?: [boolean, boolean, boolean, boolean] },
   ): void {
     if (this.phase !== 'idle' && this.phase !== 'game_over') {
       throw new Error(`Cannot start: current phase is ${this.phase}`);
     }
 
-    this.dealer = dealer;
-    this.currentPlayer = dealer;
+    this.playerActive = options?.playerActive
+      ? ([...options.playerActive] as [boolean, boolean, boolean, boolean])
+      : [true, true, true, true];
+
+    const activePlayers = ([0, 1, 2, 3] as PlayerIndex[]).filter((p) => this.playerActive[p]);
+    if (activePlayers.length < 2) {
+      throw new Error('至少需要 2 名存活玩家');
+    }
+
+    let resolvedDealer = dealer;
+    if (!this.playerActive[resolvedDealer]) {
+      resolvedDealer = this.nextActivePlayer(resolvedDealer);
+    }
+
+    this.dealer = resolvedDealer;
+    this.currentPlayer = resolvedDealer;
     this.turnNumber = 0;
     this.winner = null;
     this.winInfo = null;
@@ -250,13 +274,17 @@ export class MahjongGame {
 
     this.deck = shuffleDeck(createDeck());
 
-    // 发 13 张 / 人，庄家额外摸 1 张（共 14 张）
+    for (let p = 0; p < PLAYER_COUNT; p++) {
+      this.players[p as PlayerIndex] = emptyPlayer();
+    }
+
+    // 发 13 张 / 存活玩家，庄家额外摸 1 张（共 14 张）
     for (let round = 0; round < INITIAL_HAND_SIZE; round++) {
-      for (let p = 0; p < PLAYER_COUNT; p++) {
-        this.players[p as PlayerIndex].hand.push(this.deck.pop()!);
+      for (const p of activePlayers) {
+        this.players[p].hand.push(this.deck.pop()!);
       }
     }
-    this.players[dealer].hand.push(this.deck.pop()!);
+    this.players[resolvedDealer].hand.push(this.deck.pop()!);
 
     // 翻首张牌定万能：同牌型另 3 张 +（翻牌非白板时）白板作赖子
     if (this.deck.length === 0) {
@@ -1429,7 +1457,7 @@ export class MahjongGame {
       this.clearBlackHand();
     }
 
-    this.currentPlayer = nextPlayer(afterPlayer);
+    this.currentPlayer = this.nextActivePlayer(afterPlayer);
     this.events.emit('turn_change', {
       player: this.currentPlayer,
       turnNumber: this.turnNumber,
@@ -1457,6 +1485,8 @@ export class MahjongGame {
       const player = p as PlayerIndex;
       if (player === from) continue;
 
+      if (!this.playerActive[player]) continue;
+
       const state = this.players[player];
 
       // 胡 > 杠 > 碰 > 吃
@@ -1472,7 +1502,7 @@ export class MahjongGame {
       }
 
       // 仅下家可吃
-      if (player === nextPlayer(from)) {
+      if (player === this.nextActivePlayer(from)) {
         const chiCombos = this.findChiCombos(state.hand, tile);
         for (const chiTiles of chiCombos) {
           options.push({ player, action: 'chi', chiTiles });

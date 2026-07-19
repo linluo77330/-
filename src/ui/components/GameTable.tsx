@@ -28,6 +28,7 @@ import {
 } from './CharacterSkillInfoOverlay';
 import { Tile } from './Tile';
 import { MiniTile } from './MiniTile';
+import { RoundSummaryOverlay } from './RoundSummaryOverlay';
 
 type GameApi = ReturnType<typeof useMahjongGame>;
 
@@ -87,9 +88,10 @@ function OfflineGameTable({
     activateSkill,
     skillPick,
     skillVote,
+    matchView,
   } = gameApi;
   const humanPlayer: PlayerIndex = 0;
-  const view = buildPlayerView(snapshot, humanPlayer);
+  const view = buildPlayerView(snapshot, humanPlayer, matchView);
   const seatNames = [...PLAYER_NAMES];
   const gameLog = useGameLog(game, view.phase !== 'idle');
 
@@ -112,10 +114,12 @@ function OfflineGameTable({
       onSkillPick={skillPick}
       onSkillVote={skillVote}
       onConcealedKong={declareConcealedKong}
-      showStart
+      showStart={view.phase === 'idle' || view.match?.matchPhase === 'match_over'}
       headerCharacter={character}
       onExit={onExit}
       exitLabel="退回主菜单"
+      onReturnToLobby={onExit}
+      returnToLobbyLabel="退出对局"
     />
   );
 }
@@ -188,6 +192,8 @@ function OnlineGameTable({
       errorBanner={error}
       onExit={onExit}
       exitLabel="返回房间"
+      onReturnToLobby={onExit}
+      returnToLobbyLabel="返回房间"
     />
   );
 }
@@ -209,6 +215,8 @@ interface GameTableLayoutProps {
   errorBanner?: string | null;
   onExit: () => void;
   exitLabel: string;
+  onReturnToLobby?: () => void;
+  returnToLobbyLabel?: string;
   character: Character;
   onDrawWall?: () => void;
   onActivateSkill?: (skillId: string) => void;
@@ -234,6 +242,8 @@ function GameTableLayout({
   errorBanner,
   onExit,
   exitLabel,
+  onReturnToLobby,
+  returnToLobbyLabel,
   character,
   onDrawWall,
   onActivateSkill,
@@ -431,7 +441,11 @@ function GameTableLayout({
               playerIndex={index}
               state={view.players[index]}
               isDealer={view.dealer === index}
-              isActive={view.phase !== 'game_over' && view.currentPlayer === index}
+              isActive={
+                view.phase !== 'game_over' &&
+                view.currentPlayer === index &&
+                !(view.match?.eliminated[index])
+              }
               isWinner={view.phase === 'game_over' && view.winner === index}
               isHuman={index === humanPlayer}
               position={position}
@@ -495,6 +509,9 @@ function GameTableLayout({
                   : undefined
               }
               turnChoices={index === humanPlayer ? humanTurnChoices : undefined}
+              hp={view.match?.hp[index]}
+              maxHp={view.match?.maxHp[index]}
+              eliminated={view.match?.eliminated[index] ?? false}
             />
           ))}
 
@@ -551,6 +568,19 @@ function GameTableLayout({
             <CharacterSkillInfoOverlay
               target={skillInfoTarget}
               onClose={() => setSkillInfoTarget(null)}
+            />
+          )}
+
+          {view.match &&
+            (view.match.matchPhase === 'round_intermission' ||
+              view.match.matchPhase === 'match_over') && (
+            <RoundSummaryOverlay
+              match={view.match}
+              seatNames={seatNames}
+              onReturnToLobby={
+                view.match.matchPhase === 'match_over' ? onReturnToLobby : undefined
+              }
+              returnToLobbyLabel={returnToLobbyLabel}
             />
           )}
         </div>

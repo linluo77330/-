@@ -3470,3 +3470,201 @@ button.seat-turn-banner.seat-turn-banner--skill-ready:hover {
 .landscape-hint {
   display: none;
 }
+
+/* ── HP badge ── */
+
+.hp-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 1px;
+  line-height: 1;
+}
+
+.hp-badge__pip {
+  font-size: 0.62rem;
+}
+
+.hp-badge__pip--filled {
+  color: #c0392b;
+}
+
+.hp-badge__pip--empty {
+  color: rgba(0, 0, 0, 0.18);
+}
+
+.hp-badge--eliminated .hp-badge__pip {
+  color: rgba(0, 0, 0, 0.22);
+}
+
+.hp-badge--compact .hp-badge__pip {
+  font-size: 0.55rem;
+}
+
+.player-seat--eliminated {
+  opacity: 0.55;
+}
+
+.player-seat--eliminated .player-seat__hand-wrap,
+.player-seat--eliminated .player-seat__river-strip {
+  filter: grayscale(0.35);
+}
+
+/* ── Round / match summary overlay ── */
+
+.round-summary {
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  background: rgba(20, 12, 6, 0.45);
+}
+
+.round-summary__panel {
+  pointer-events: auto;
+  width: min(360px, 92%);
+  max-height: min(80dvh, 420px);
+  overflow-y: auto;
+  padding: 1rem 1.1rem;
+  border-radius: 14px;
+  background: linear-gradient(180deg, #fffdf8 0%, #f8f0e4 100%);
+  border: 2px solid rgba(179, 36, 40, 0.28);
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
+}
+
+.round-summary__title {
+  margin: 0 0 0.55rem;
+  font-size: 1rem;
+  text-align: center;
+}
+
+.round-summary__winner-line {
+  margin: 0 0 0.45rem;
+  text-align: center;
+  font-size: 0.9rem;
+}
+
+.round-summary__detail {
+  margin: 0 0 0.5rem;
+  text-align: center;
+  font-size: 0.78rem;
+  opacity: 0.75;
+}
+
+.round-summary__hp-list {
+  list-style: none;
+  margin: 0.5rem 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.round-summary__hp-item {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  gap: 0.35rem 0.5rem;
+  align-items: center;
+  font-size: 0.78rem;
+  padding: 0.35rem 0.45rem;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.round-summary__hp-delta {
+  font-weight: 800;
+  color: #c0392b;
+}
+
+.round-summary__hp-reason {
+  opacity: 0.7;
+  font-size: 0.72rem;
+}
+
+.round-summary__hp-remain {
+  font-size: 0.72rem;
+  opacity: 0.65;
+}
+
+.round-summary__countdown {
+  margin: 0.65rem 0 0;
+  text-align: center;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #8b6914;
+}
+
+.round-summary--match-over .round-summary__winners {
+  text-align: center;
+  font-size: 1.05rem;
+  margin: 0.35rem 0;
+}
+
+.round-summary__winners-tag {
+  color: #b8860b;
+}
+
+.round-summary__hint {
+  text-align: center;
+  font-size: 0.78rem;
+  opacity: 0.7;
+  margin: 0;
+}
+
+.round-summary__return {
+  display: block;
+  width: 100%;
+  margin-top: 1rem;
+}
+
+.action-panel__match {
+  font-size: 0.78rem;
+  opacity: 0.75;
+}
+
+.character-card__hp {
+  display: block;
+  font-size: 0.62rem;
+  opacity: 0.75;
+  margin-top: 0.15rem;
+}
+
+.character-select__preview-hp {
+  margin: 0.35rem 0 0.5rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #c0392b;
+}
+
+.online-lobby__match-config {
+  width: 100%;
+  margin: 0.75rem 0 0.5rem;
+  padding: 0.65rem 0.75rem;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.45);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+}
+
+.online-lobby__field--inline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin: 0;
+}
+
+.online-lobby__field--inline select {
+  min-width: 5rem;
+  padding: 0.35rem 0.5rem;
+  border-radius: 8px;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+}
+
+.online-lobby__match-config-hint {
+  margin: 0.45rem 0 0;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  opacity: 0.75;
+}

@@ -1,7 +1,20 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { MahjongGame } from '@/core/MahjongGame';
 import type { GameEventName, GameSnapshot } from '@/core';
-import type { PlayerIndex, ResponseAction, ResponseOption } from '@/core/types';
+import type { PlayerIndex, ResponseAction, ResponseOption, MatchViewState } from '@/core/types';
+import {
+  activePlayersMask,
+  beginNextRound,
+  buildMaxHpFromCharacters,
+  createInitialMatchState,
+  getMatchWinners,
+  isMatchFinished,
+  processRoundEnd,
+  toMatchViewState,
+  type MatchState,
+  ROUND_INTERMISSION_MS,
+} from '@/core/matchState';
+import { getCharacterMaxHp } from '../data/characters';
 
 const SYNC_EVENTS: GameEventName[] = [
   'game_start',
@@ -39,10 +52,97 @@ export function useMahjongGame() {
 
   const [snapshot, setSnapshot] = useState<GameSnapshot>(() => game.getSnapshot());
   const [drawnTileId, setDrawnTileId] = useState<string | null>(null);
+  const [matchState, setMatchState] = useState<MatchState | null>(null);
+  const [countdownTick, setCountdownTick] = useState(0);
+
+  const matchStateRef = useRef<MatchState | null>(null);
+  const lastDiscardFromRef = useRef<PlayerIndex | null>(null);
+  const intermissionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const countdownIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const refresh = useCallback(() => {
     setSnapshot(game.getSnapshot());
+    setCountdownTick((t) => t + 1);
   }, [game]);
+
+  const clearIntermissionTimers = useCallback(() => {
+    if (intermissionTimerRef.current) clearTimeout(intermissionTimerRef.current);
+    if (countdownIntervalRef.current) clearInterval(countdownIntervalRef.current);
+    intermissionTimerRef.current = null;
+    countdownIntervalRef.current = null;
+  }, []);
+
+  const startRound = useCallback(
+    (state: MatchState, playerCharacters: [string, string, string, string]) => {
+      const mask = activePlayersMask(state);
+      game.setPlayerActive(mask);
+      game.start(state.dealer, playerCharacters, { playerActive: mask });
+      setDrawnTileId(null);
+      refresh();
+    },
+    [game, refresh],
+  );
+
+  const scheduleNextRound = useCallback(
+    (state: MatchState, playerCharacters: [string, string, string, string]) => {
+      clearIntermissionTimers();
+      countdownIntervalRef.current = setInterval(() => {
+        setCountdownTick((t) => t + 1);
+      }, 500);
+      intermissionTimerRef.current = setTimeout(() => {
+        clearIntermissionTimers();
+        if (isMatchFinished(state)) {
+          const finished = {
+            ...state,
+            matchPhase: 'match_over' as const,
+            matchWinners: getMatchWinners(state),
+            nextRoundAt: null,
+          };
+          matchStateRef.current = finished;
+          setMatchState(finished);
+          return;
+        }
+        const next = beginNextRound(state);
+        matchStateRef.current = next;
+        setMatchState(next);
+        startRound(next, playerCharacters);
+      }, ROUND_INTERMISSION_MS);
+    },
+    [clearIntermissionTimers, startRound],
+  );
+
+  const handleRoundEnd = useCallback(
+    (playerCharacters: [string, string, string, string]) => {
+      const current = matchStateRef.current;
+      if (!current) {
+        refresh();
+        return;
+      }
+
+      const snap = game.getSnapshot();
+      const updated = processRoundEnd(current, {
+        winner: snap.winner,
+        gameOverReason: snap.gameOverReason,
+        winInfo: snap.winInfo,
+        lastDiscardFrom: lastDiscardFromRef.current,
+        stealTarget:
+          snap.gameOverReason === 'skill_steal' ? snap.blackHandTarget : null,
+      });
+
+      matchStateRef.current = updated;
+      setMatchState(updated);
+      refresh();
+
+      if (updated.matchPhase === 'round_intermission') {
+        scheduleNextRound(updated, playerCharacters);
+      } else {
+        clearIntermissionTimers();
+      }
+    },
+    [game, refresh, scheduleNextRound, clearIntermissionTimers],
+  );
+
+  const playerCharactersRef = useRef<[string, string, string, string]>(['', '', '', '']);
 
   useEffect(() => {
     const unsubs = [
@@ -58,25 +158,52 @@ export function useMahjongGame() {
         }
       }),
       game.on('after_discard', (payload) => {
+        lastDiscardFromRef.current = payload.player;
         if (payload.player === 0) {
           setDrawnTileId(null);
         }
       }),
+      game.on('game_over', () => {
+        handleRoundEnd(playerCharactersRef.current);
+        return undefined;
+      }),
     ];
-    return () => unsubs.forEach((off) => off());
-  }, [game, refresh]);
+    return () => {
+      unsubs.forEach((off) => off());
+      clearIntermissionTimers();
+    };
+  }, [game, refresh, handleRoundEnd, clearIntermissionTimers]);
+
+  const startMatch = useCallback(
+    (
+      playerCharacters: [string, string, string, string],
+      survivorsToWin = 1,
+      dealer: PlayerIndex = 0,
+    ) => {
+      clearIntermissionTimers();
+      playerCharactersRef.current = playerCharacters;
+      const maxHp = buildMaxHpFromCharacters(playerCharacters, getCharacterMaxHp);
+      const initial = { ...createInitialMatchState(maxHp, survivorsToWin), dealer };
+      matchStateRef.current = initial;
+      setMatchState(initial);
+      startRound(initial, playerCharacters);
+    },
+    [clearIntermissionTimers, startRound],
+  );
 
   const start = useCallback(
     (
       dealer: PlayerIndex = 0,
       playerCharacters: [string, string, string, string] = ['', '', '', ''],
     ) => {
-      game.start(dealer, playerCharacters);
-      setDrawnTileId(null);
-      refresh();
+      startMatch(playerCharacters, 1, dealer);
     },
-    [game, refresh],
+    [startMatch],
   );
+
+  const matchView: MatchViewState | null = matchState
+    ? toMatchViewState(matchState)
+    : null;
 
   const drawWall = useCallback(() => {
     game.drawCard();
@@ -200,7 +327,9 @@ export function useMahjongGame() {
     game,
     snapshot,
     drawnTileId,
+    matchView,
     start,
+    startMatch,
     drawWall,
     activateSkill,
     skillPick,

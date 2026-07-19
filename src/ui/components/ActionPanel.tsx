@@ -107,6 +107,7 @@ export function ActionPanel({
 }: ActionPanelProps) {
   const { phase, deckCount, winner } = view;
   const isMyTurn = view.currentPlayer === humanPlayer;
+  const match = view.match;
   const concealedKongOptions =
     phase === 'discard' &&
     isMyTurn &&
@@ -125,6 +126,11 @@ export function ActionPanel({
       <div className="action-panel__main">
         <div className="action-panel__top-row">
           <span className="action-panel__phase">{PHASE_LABELS[phase] ?? phase}</span>
+          {match && (
+            <span className="action-panel__match">
+              第 {match.roundNumber} 局 · 存活目标 {match.survivorsToWin} 人
+            </span>
+          )}
           <span className="action-panel__deck">牌墙 {deckCount} 张</span>
           {winner !== null && (
             <span className="action-panel__winner">🎉 玩家 {winner} 胡了</span>

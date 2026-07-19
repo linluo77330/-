@@ -20,7 +20,8 @@ export type ClientMessage =
   | { type: 'draw_wall' }
   | { type: 'activate_skill'; skillId: string }
   | { type: 'skill_pick'; tileId?: string; splitRanks?: [number, number]; confirm?: boolean; targetPlayer?: PlayerIndex; skip?: boolean }
-  | { type: 'skill_vote'; agree: boolean };
+  | { type: 'skill_vote'; agree: boolean }
+  | { type: 'set_survivors_to_win'; survivorsToWin: number };
 
 /** ── 服务端 → 客户端 ── */
 
@@ -39,6 +40,8 @@ export interface RoomStatePayload {
   roomId: string;
   inGame: boolean;
   hostPlayerIndex: PlayerIndex | null;
+  /** 场上剩余 Y 名玩家时整场结束 */
+  survivorsToWin: number;
   seats: SeatInfo[];
 }
 

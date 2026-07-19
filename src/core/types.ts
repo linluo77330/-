@@ -238,6 +238,42 @@ export interface GameSnapshot {
   gameOverReason: GameOverReason | null;
 }
 
+export type MatchPhase = 'playing' | 'round_intermission' | 'match_over';
+
+export type RoundWinType = 'self_draw' | 'deal_in' | 'skill_vote' | 'skill_steal' | 'draw' | 'none';
+
+export type HpChangeReason = 'self_draw' | 'deal_in' | 'skill_vote' | 'skill_steal';
+
+export interface HpChangeEntry {
+  player: PlayerIndex;
+  delta: number;
+  reason: HpChangeReason;
+}
+
+export interface RoundSummary {
+  roundNumber: number;
+  winner: PlayerIndex | null;
+  winType: RoundWinType;
+  discarder: PlayerIndex | null;
+  hpChanges: HpChangeEntry[];
+}
+
+export interface MatchViewState {
+  hp: [number, number, number, number];
+  maxHp: [number, number, number, number];
+  eliminated: [boolean, boolean, boolean, boolean];
+  survivorsToWin: number;
+  roundNumber: number;
+  matchPhase: MatchPhase;
+  lastRoundSummary: RoundSummary | null;
+  matchWinners: PlayerIndex[];
+  /** 下一局倒计时（秒），仅 round_intermission */
+  nextRoundCountdown: number | null;
+  /** 下一局开始时间戳（毫秒） */
+  nextRoundAt: number | null;
+  dealer: PlayerIndex;
+}
+
 /** 联机：他人手牌仅可见张数 */
 export interface HiddenHandView {
   kind: 'hidden';
@@ -292,4 +328,6 @@ export interface PlayerView {
   /** 仅零食大总统视角可见：当前黑手标记的玩家 */
   blackHandTarget: PlayerIndex | null;
   gameOverReason: GameOverReason | null;
+  /** 多局对战状态；单局模式可为 null */
+  match: MatchViewState | null;
 }

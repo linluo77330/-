@@ -239,6 +239,10 @@ export function useOnlineGame() {
 
   const ready = useCallback(() => send({ type: 'ready' }), [send]);
   const startGame = useCallback(() => send({ type: 'start_game' }), [send]);
+  const setSurvivorsToWin = useCallback(
+    (survivorsToWin: number) => send({ type: 'set_survivors_to_win', survivorsToWin }),
+    [send],
+  );
   const addBot = useCallback(
     (seatIndex?: PlayerIndex) => send({ type: 'add_bot', seatIndex }),
     [send],
@@ -335,6 +339,7 @@ export function useOnlineGame() {
     leaveGame,
     ready,
     startGame,
+    setSurvivorsToWin,
     addBot,
     removeBot,
     discard,

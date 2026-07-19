@@ -34,6 +34,7 @@ export function OnlineLobbyScreen({ online, character, onBack }: OnlineLobbyScre
     removeBot,
     lobbyNotice,
     gameAbortWarning,
+    setSurvivorsToWin,
   } = online;
 
   const seats = roomState?.seats ?? [];
@@ -46,6 +47,7 @@ export function OnlineLobbyScreen({ online, character, onBack }: OnlineLobbyScre
   const mySeat = playerIndex !== null ? seats[playerIndex] : null;
   const myReady = mySeat?.kind === 'human' && mySeat.ready;
   const emptyCount = seats.filter((s) => s.kind === 'empty').length;
+  const survivorsToWin = roomState?.survivorsToWin ?? 1;
 
   useEffect(() => {
     if (!connected) {
@@ -213,6 +215,27 @@ export function OnlineLobbyScreen({ online, character, onBack }: OnlineLobbyScre
           </div>
 
           {error && <p className="online-lobby__error">{error}</p>}
+
+          {isHost && !roomState?.inGame && (
+            <div className="online-lobby__match-config">
+              <label className="online-lobby__field online-lobby__field--inline">
+                <span>存活至最后几人获胜（Y）</span>
+                <select
+                  value={survivorsToWin}
+                  onChange={(e) => setSurvivorsToWin(Number(e.target.value))}
+                >
+                  {[1, 2, 3].map((n) => (
+                    <option key={n} value={n}>
+                      {n} 人
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <p className="online-lobby__match-config-hint">
+                每名玩家有 3 点生命；自摸时其余人扣血，点炮时放铳者扣血。生命归零淘汰，直至场上剩 {survivorsToWin} 人。
+              </p>
+            </div>
+          )}
 
           <div className="online-lobby__actions">
             {mySeat?.kind === 'human' && !myReady && (

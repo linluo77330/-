@@ -19,6 +19,19 @@ import {
 } from '../core/gameLog.js';
 import type { PlayerIndex } from '../core/types.js';
 import {
+  activePlayersMask,
+  beginNextRound,
+  buildMaxHpFromCharacters,
+  createInitialMatchState,
+  getCharacterMaxHp,
+  getMatchWinners,
+  isMatchFinished,
+  processRoundEnd,
+  toMatchViewState,
+  ROUND_INTERMISSION_MS,
+  type MatchState,
+} from '../core/matchState.js';
+import {
   parseClientMessage,
   sendMessage,
   type ClientMessage,
@@ -57,6 +70,10 @@ export class Room {
   private lastDiscardFrom: PlayerIndex | null = null;
   private unsubs: Array<() => void> = [];
   private botCounter = 0;
+  private survivorsToWin = 1;
+  private matchState: MatchState | null = null;
+  private intermissionTimer: ReturnType<typeof setTimeout> | null = null;
+  private intermissionInterval: ReturnType<typeof setInterval> | null = null;
 
   constructor(roomId: string) {
     this.roomId = roomId;
@@ -173,7 +190,11 @@ export class Room {
         case 'leave_game':
           if (!seat) throw new Error('请先加入房间');
           if (!this.inGame) throw new Error('当前不在对局中');
-          this.handlePlayerLeave(seat, { keepConnected: true });
+          if (this.matchState?.matchPhase === 'match_over') {
+            this.endMatchSession();
+          } else {
+            this.handlePlayerLeave(seat, { keepConnected: true });
+          }
           break;
         case 'draw_wall':
           if (!seat) throw new Error('请先加入房间');
@@ -196,6 +217,10 @@ export class Room {
         case 'skill_vote':
           if (!seat) throw new Error('请先加入房间');
           this.handleSkillVote(seat, msg.agree);
+          break;
+        case 'set_survivors_to_win':
+          if (!seat) throw new Error('请先加入房间');
+          this.handleSetSurvivorsToWin(seat, msg.survivorsToWin);
           break;
         default:
           sendMessage(ws, { type: 'error', message: '未知消息类型' });
@@ -306,6 +331,13 @@ export class Room {
     this.startGame();
   }
 
+  private handleSetSurvivorsToWin(seat: SeatSlot, survivorsToWin: number): void {
+    if (this.inGame) throw new Error('对局进行中无法修改');
+    this.assertHost(seat);
+    this.survivorsToWin = Math.max(1, Math.min(4, Math.floor(survivorsToWin)));
+    this.broadcastRoomState();
+  }
+
   private startGame(): void {
     this.inGame = true;
     this.botPlayerIndices = new Set(
@@ -323,7 +355,12 @@ export class Room {
       string,
       string,
     ];
-    this.game.start(0, playerCharacters);
+    const maxHp = buildMaxHpFromCharacters(playerCharacters, getCharacterMaxHp);
+    this.matchState = createInitialMatchState(maxHp, this.survivorsToWin);
+    this.game!.setPlayerActive(activePlayersMask(this.matchState));
+    this.game!.start(this.matchState.dealer, playerCharacters, {
+      playerActive: activePlayersMask(this.matchState),
+    });
     this.broadcastRoomState();
     this.broadcastGameState();
     this.scheduleAutoDraw();
@@ -348,7 +385,6 @@ export class Room {
       'response_window_open',
       'response_level_change',
       'response_window_close',
-      'game_over',
       'wildcard_reveal',
       'wildcard_change',
       'turn_change',
@@ -419,6 +455,95 @@ export class Room {
         );
       }),
     );
+    this.unsubs.push(
+      this.game.on('game_over', () => {
+        this.handleRoundEnd();
+        return undefined;
+      }),
+    );
+  }
+
+  private clearIntermissionTimers(): void {
+    if (this.intermissionTimer) clearTimeout(this.intermissionTimer);
+    if (this.intermissionInterval) clearInterval(this.intermissionInterval);
+    this.intermissionTimer = null;
+    this.intermissionInterval = null;
+  }
+
+  private handleRoundEnd(): void {
+    if (!this.game || !this.matchState) {
+      this.broadcastGameState();
+      return;
+    }
+
+    const snap = this.game.getSnapshot();
+    this.matchState = processRoundEnd(this.matchState, {
+      winner: snap.winner,
+      gameOverReason: snap.gameOverReason,
+      winInfo: snap.winInfo,
+      lastDiscardFrom: this.lastDiscardFrom,
+      stealTarget: snap.gameOverReason === 'skill_steal' ? snap.blackHandTarget : null,
+    });
+
+    this.broadcastGameState();
+
+    if (this.matchState.matchPhase === 'round_intermission') {
+      this.scheduleNextRound();
+    } else if (this.matchState.matchPhase === 'match_over') {
+      this.clearIntermissionTimers();
+    } else {
+      this.clearIntermissionTimers();
+    }
+  }
+
+  private endMatchSession(): void {
+    this.clearIntermissionTimers();
+    this.clearGameTimers();
+    this.unsubs.forEach((off) => off());
+    this.unsubs = [];
+    this.game = null;
+    this.matchState = null;
+    this.inGame = false;
+    this.lastDrawnTileId = {};
+    this.lastDiscardFrom = null;
+    this.broadcastRoomState();
+  }
+
+  private scheduleNextRound(): void {
+    this.clearIntermissionTimers();
+    this.intermissionInterval = setInterval(() => {
+      this.broadcastGameState();
+    }, 500);
+
+    this.intermissionTimer = setTimeout(() => {
+      this.clearIntermissionTimers();
+      if (!this.game || !this.matchState) return;
+      if (isMatchFinished(this.matchState)) {
+        this.matchState = {
+          ...this.matchState,
+          matchPhase: 'match_over',
+          matchWinners: getMatchWinners(this.matchState),
+          nextRoundAt: null,
+        };
+        this.broadcastGameState();
+        return;
+      }
+
+      this.matchState = beginNextRound(this.matchState);
+      const playerCharacters = this.seats.map((s) => s.characterId) as [
+        string,
+        string,
+        string,
+        string,
+      ];
+      const mask = activePlayersMask(this.matchState);
+      this.game.setPlayerActive(mask);
+      this.lastDrawnTileId = {};
+      this.game.start(this.matchState.dealer, playerCharacters, { playerActive: mask });
+      this.broadcastGameState();
+      this.scheduleAutoDraw();
+      this.scheduleBotActions();
+    }, ROUND_INTERMISSION_MS);
   }
 
   private scheduleAutoDraw(): void {
@@ -441,9 +566,12 @@ export class Room {
   private scheduleBotActions(): void {
     if (this.botTimer) clearTimeout(this.botTimer);
     if (this.abortTimer || !this.game || !this.inGame) return;
+    if (this.matchState?.matchPhase === 'round_intermission') return;
 
     const snap = this.game.getSnapshot();
     const delay = getBotActionDelayMs();
+
+    const isEliminated = (p: PlayerIndex) => this.matchState?.eliminated[p] ?? false;
 
     if (this.game.isSkillVoteActive()) {
       const mode = snap.skillMode;
@@ -478,7 +606,7 @@ export class Room {
       return;
     }
 
-    if (snap.phase === 'draw' && this.isBot(snap.currentPlayer) && !this.game.needsDrawChoice()) {
+    if (snap.phase === 'draw' && this.isBot(snap.currentPlayer) && !isEliminated(snap.currentPlayer) && !this.game.needsDrawChoice()) {
       this.botTimer = setTimeout(() => {
         if (!this.game || this.game.getPhase() !== 'draw') return;
         if (!this.isBot(this.game.getCurrentPlayer())) return;
@@ -666,6 +794,7 @@ export class Room {
       roomId: this.roomId,
       inGame: this.inGame,
       hostPlayerIndex: this.hostPlayerIndex,
+      survivorsToWin: this.survivorsToWin,
       seats: this.seats.map(
         (s): SeatInfo => ({
           playerIndex: s.playerIndex,
@@ -747,9 +876,13 @@ export class Room {
 
   broadcastGameState(): void {
     if (!this.game || this.abortTimer) return;
+    const matchView = this.matchState ? toMatchViewState(this.matchState) : null;
     for (const seat of this.seats) {
       if (!seat.ws) continue;
-      const view = this.game.getSnapshotForPlayer(seat.playerIndex);
+      const view = {
+        ...this.game.getSnapshotForPlayer(seat.playerIndex),
+        match: matchView,
+      };
       sendMessage(seat.ws, {
         type: 'game_state',
         state: {

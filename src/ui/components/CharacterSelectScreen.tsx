@@ -62,6 +62,7 @@ export function CharacterSelectScreen({
                 <span className="character-card__skill">
                   {character.skill?.name ?? '无技能'}
                 </span>
+                <span className="character-card__hp">生命 ♥×{character.maxHp}</span>
               </button>
             ))}
           </div>
@@ -80,6 +81,7 @@ export function CharacterSelectScreen({
                 )}
               </p>
               <p className="character-select__preview-desc">{selected.description}</p>
+              <p className="character-select__preview-hp">起始生命：{selected.maxHp} 点</p>
               {selected.skill && (
                 <div className="character-select__preview-skill">
                   <strong className="character-select__preview-skill-title">

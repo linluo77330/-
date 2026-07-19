@@ -443,6 +443,7 @@ export function normalizePlayerView(
     skillActivity: null,
     blackHandTarget: raw.blackHandTarget ?? null,
     gameOverReason: raw.gameOverReason ?? null,
+    match: raw.match ?? null,
   };
 
   return refreshPlayerViewSkills({
@@ -452,7 +453,11 @@ export function normalizePlayerView(
 }
 
 /** 联机：按 viewer 隐藏他人手牌与牌墙 */
-export function buildPlayerView(snapshot: GameSnapshot, viewer: PlayerIndex): PlayerView {
+export function buildPlayerView(
+  snapshot: GameSnapshot,
+  viewer: PlayerIndex,
+  match: import('./types.js').MatchViewState | null = null,
+): PlayerView {
   const players = snapshot.players.map((state, i) =>
     clonePlayerState(state, viewer, i as PlayerIndex, snapshot),
   ) as PlayerView['players'];
@@ -496,6 +501,7 @@ export function buildPlayerView(snapshot: GameSnapshot, viewer: PlayerIndex): Pl
     blackHandTarget:
       snapshot.blackHandOwner === viewer ? snapshot.blackHandTarget : null,
     gameOverReason: snapshot.gameOverReason,
+    match,
   };
 }
 
