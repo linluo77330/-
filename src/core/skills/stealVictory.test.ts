@@ -127,7 +127,9 @@ describe('steal victory skill', () => {
       true,
     );
 
-    expect(game.getSnapshot().winner).toBe(0);
-    expect(game.getSnapshot().gameOverReason).toBe('skill_steal');
+    const snap = game.getSnapshot();
+    expect(snap.winner).toBe(0);
+    expect(snap.gameOverReason).toBe('skill_steal');
+    expect(snap.winInfo).toEqual({ tile: winTile, isSelfDraw: true });
   });
 });

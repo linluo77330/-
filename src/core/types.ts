@@ -236,6 +236,8 @@ export interface GameSnapshot {
   blackHandTarget: PlayerIndex | null;
   blackHandOwner: PlayerIndex | null;
   gameOverReason: GameOverReason | null;
+  /** 各玩家本回合刚摸到的牌（出牌后清除） */
+  lastDrawnTileIds: [string | null, string | null, string | null, string | null];
 }
 
 export type MatchPhase = 'playing' | 'round_intermission' | 'match_over';
@@ -330,4 +332,6 @@ export interface PlayerView {
   gameOverReason: GameOverReason | null;
   /** 多局对战状态；单局模式可为 null */
   match: MatchViewState | null;
+  /** viewer 本回合刚摸到的牌 id，用于 UI 高亮 */
+  lastDrawnTileId: string | null;
 }

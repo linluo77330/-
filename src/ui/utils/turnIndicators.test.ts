@@ -39,6 +39,8 @@ function baseView(overrides: Partial<PlayerView> = {}): PlayerView {
     skillActivity: null,
     blackHandTarget: null,
     gameOverReason: null,
+    match: null,
+    lastDrawnTileId: null,
     ...overrides,
   } as PlayerView;
 }

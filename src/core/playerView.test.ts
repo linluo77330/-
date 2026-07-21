@@ -33,11 +33,30 @@ function baseSnapshot(overrides: Partial<GameSnapshot> = {}): GameSnapshot {
     blackHandTarget: null,
     blackHandOwner: null,
     gameOverReason: null,
+    lastDrawnTileIds: [null, null, null, null],
     ...overrides,
   };
 }
 
 describe('buildPlayerView winner reveal', () => {
+  it('buildPlayerView 暴露 viewer 刚摸到的牌 id', () => {
+    const drawn = t('wan', 9);
+    const snapshot = baseSnapshot({
+      phase: 'discard',
+      winner: null,
+      winInfo: null,
+      players: [
+        { hand: [t('wan', 1), drawn], discards: [], melds: [] },
+        { hand: [t('tong', 1)], discards: [], melds: [] },
+        { hand: [t('tiao', 5)], discards: [], melds: [] },
+        { hand: [t('feng', 1)], discards: [], melds: [] },
+      ],
+      lastDrawnTileIds: [drawn.id, null, null, null],
+    });
+    const view = buildPlayerView(snapshot, 0);
+    expect(view.lastDrawnTileId).toBe(drawn.id);
+  });
+
   it('胡牌后向所有视角公开赢家手牌', () => {
     const snapshot = baseSnapshot();
     const view = buildPlayerView(snapshot, 0);

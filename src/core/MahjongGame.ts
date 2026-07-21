@@ -131,6 +131,20 @@ export class MahjongGame {
   private blackHandJudgmentPending = false;
   private gameOverReason: GameOverReason | null = null;
   private playerActive: [boolean, boolean, boolean, boolean] = [true, true, true, true];
+  private lastDrawnTileIds: [string | null, string | null, string | null, string | null] = [
+    null,
+    null,
+    null,
+    null,
+  ];
+
+  private markDrawnTile(player: PlayerIndex, tileId: string): void {
+    this.lastDrawnTileIds[player] = tileId;
+  }
+
+  private clearDrawnTile(player: PlayerIndex): void {
+    this.lastDrawnTileIds[player] = null;
+  }
 
   private nextActivePlayer(current: PlayerIndex): PlayerIndex {
     for (let i = 1; i <= PLAYER_COUNT; i++) {
@@ -207,6 +221,7 @@ export class MahjongGame {
       blackHandTarget: this.blackHandTarget,
       blackHandOwner: this.blackHandOwner,
       gameOverReason: this.gameOverReason,
+      lastDrawnTileIds: [...this.lastDrawnTileIds] as GameSnapshot['lastDrawnTileIds'],
     };
   }
 
@@ -269,6 +284,7 @@ export class MahjongGame {
     this.blackHandOwner = null;
     this.blackHandJudgmentPending = false;
     this.gameOverReason = null;
+    this.lastDrawnTileIds = [null, null, null, null];
 
     this.setPhase('dealing');
 
@@ -913,6 +929,7 @@ export class MahjongGame {
 
     const tile = discards.splice(idx, 1)[0];
     this.players[player].hand.push(tile);
+    this.markDrawnTile(player, tile.id);
     this.skillUses[player] += 1;
     this.skillMode = null;
 
@@ -1000,6 +1017,7 @@ export class MahjongGame {
       const tile = this.deck.pop()!;
       hand.push(tile);
       drawnTiles.push({ ...tile });
+      this.markDrawnTile(player, tile.id);
 
       this.events.emit('after_draw', {
         player,
@@ -1168,6 +1186,7 @@ export class MahjongGame {
 
     const tile = this.deck.pop()!;
     this.players[player].hand.push(tile);
+    this.markDrawnTile(player, tile.id);
 
     if (this.tryHu(player, tile, true)) {
       this.events.emit('after_draw', {
@@ -1261,6 +1280,7 @@ export class MahjongGame {
 
     hand.splice(idx, 1);
     this.players[player].discards.push(tile);
+    this.clearDrawnTile(player);
 
     this.lastDiscard = { tile, from: player };
     this.events.emit('after_discard', {
@@ -1468,7 +1488,7 @@ export class MahjongGame {
   private endGame(winner: PlayerIndex | null, reason: GameOverReason): void {
     this.winner = winner;
     this.gameOverReason = reason;
-    if (reason !== 'hu') {
+    if (reason !== 'hu' && reason !== 'skill_steal') {
       this.winInfo = null;
     }
     this.setPhase('game_over');
@@ -1627,6 +1647,7 @@ export class MahjongGame {
     if (this.deck.length === 0) return;
     const tile = this.deck.pop()!;
     this.players[player].hand.push(tile);
+    this.markDrawnTile(player, tile.id);
     this.events.emit('after_draw', {
       player,
       tile,
@@ -1663,7 +1684,6 @@ export class MahjongGame {
     isSelfDraw: boolean,
     judgmentTile: Tile,
   ): boolean {
-    this.winInfo = null;
     this.events.emit('after_hu', { player: originalWinner, tile, isSelfDraw });
     this.events.emit('after_response', {
       player: originalWinner,
@@ -1678,6 +1698,7 @@ export class MahjongGame {
     });
     this.closeResponseWindow(true);
     this.clearBlackHand();
+    this.winInfo = { tile: { ...tile }, isSelfDraw };
     this.endGame(owner, 'skill_steal');
     return true;
   }

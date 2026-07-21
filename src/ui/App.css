@@ -2333,6 +2333,67 @@ button.seat-turn-banner.seat-turn-banner--skill-ready:hover {
   user-select: none;
 }
 
+.tile.tile--drawn {
+  overflow: visible;
+  border-color: #c9920a;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 0 0 3px #d4a017,
+    0 0 14px rgba(212, 160, 23, 0.65),
+    0 2px 8px rgba(0, 0, 0, 0.25);
+  z-index: 4;
+}
+
+.tile.tile--drawn::before {
+  content: none;
+}
+
+.tile__drawn-badge {
+  position: absolute;
+  top: -7px;
+  right: -5px;
+  min-width: 14px;
+  height: 14px;
+  padding: 0 3px;
+  border-radius: 7px;
+  background: linear-gradient(180deg, #f0c040 0%, #d4a017 100%);
+  color: #3d2e08;
+  font-size: 0.55rem;
+  font-weight: 800;
+  line-height: 14px;
+  text-align: center;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+  pointer-events: none;
+  z-index: 3;
+}
+
+.tile.tile--wildcard.tile--drawn {
+  border-color: #c9920a;
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.9),
+    0 0 0 3px #d4a017,
+    0 0 0 5px rgba(155, 89, 214, 0.35),
+    0 0 14px rgba(212, 160, 23, 0.65),
+    0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.tile.tile--drawn.tile--clickable:hover:not(:disabled) {
+  box-shadow:
+    0 0 0 3px #e6b422,
+    0 0 16px rgba(212, 160, 23, 0.7),
+    0 4px 12px rgba(0, 0, 0, 0.28);
+}
+
+.tile.tile--drawn.tile--selected {
+  transform: translateY(-7px);
+  box-shadow:
+    0 0 0 3px #d4a017,
+    0 0 0 5px var(--accent),
+    0 0 14px rgba(212, 160, 23, 0.65),
+    0 8px 16px rgba(0, 0, 0, 0.3);
+  z-index: 6;
+}
+
 .tile-row--spaced .tile {
   box-shadow:
     inset 0 1px 0 rgba(255, 255, 255, 0.8),
@@ -2359,26 +2420,6 @@ button.seat-turn-banner.seat-turn-banner--skill-ready:hover {
   z-index: 4;
 }
 
-.tile-row--spaced .tile.tile--drawn::before {
-  content: '摸';
-  position: absolute;
-  top: -7px;
-  right: -5px;
-  min-width: 14px;
-  height: 14px;
-  padding: 0 3px;
-  border-radius: 7px;
-  background: linear-gradient(180deg, #f0c040 0%, #d4a017 100%);
-  color: #3d2e08;
-  font-size: 0.55rem;
-  font-weight: 800;
-  line-height: 14px;
-  text-align: center;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
-  pointer-events: none;
-  z-index: 2;
-}
-
 .tile-row--spaced .tile.tile--wildcard.tile--drawn {
   border-color: #c9920a;
   box-shadow:
@@ -2387,6 +2428,23 @@ button.seat-turn-banner.seat-turn-banner--skill-ready:hover {
     0 0 0 5px rgba(155, 89, 214, 0.35),
     0 0 14px rgba(212, 160, 23, 0.65),
     0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.tile-row--spaced .tile.tile--drawn.tile--clickable:hover:not(:disabled) {
+  box-shadow:
+    0 0 0 3px #e6b422,
+    0 0 16px rgba(212, 160, 23, 0.7),
+    0 4px 12px rgba(0, 0, 0, 0.28);
+}
+
+.tile-row--spaced .tile.tile--drawn.tile--selected {
+  transform: translateY(-7px);
+  box-shadow:
+    0 0 0 3px #d4a017,
+    0 0 0 5px var(--accent),
+    0 0 14px rgba(212, 160, 23, 0.65),
+    0 8px 16px rgba(0, 0, 0, 0.3);
+  z-index: 6;
 }
 
 .tile--vertical .tile__img {
@@ -2420,13 +2478,6 @@ button.seat-turn-banner.seat-turn-banner--skill-ready:hover {
   box-shadow:
     0 0 0 2px #9b59d6,
     0 6px 14px rgba(107, 63, 160, 0.4);
-}
-
-.tile-row--spaced .tile.tile--drawn.tile--clickable:hover:not(:disabled) {
-  box-shadow:
-    0 0 0 3px #e6b422,
-    0 0 16px rgba(212, 160, 23, 0.7),
-    0 4px 12px rgba(0, 0, 0, 0.28);
 }
 
 /* ── Action panel（含响应区，固定高度防闪烁）── */

@@ -5,6 +5,7 @@ import type { PlayerIndex, PlayerView, ResponseOption } from '@/core/types';
 import type { RoomStatePayload, ServerMessage } from '@/shared/protocol';
 
 import { DEFAULT_WS_URL, isSupportedOnlineServer, onlineServerErrorMessage } from '../constants';
+import { resolveOnlineDrawnTileId } from '../utils/onlineDrawnTile';
 
 /**
  * 联机对局 hook：与 useMahjongGame 暴露相同操作接口，
@@ -16,6 +17,7 @@ export function useOnlineGame() {
   const roomStateRef = useRef<RoomStatePayload | null>(null);
   const abortEndsAtRef = useRef<number | null>(null);
   const abortPendingRef = useRef(false);
+  const prevHandIdsRef = useRef<string[]>([]);
 
   const [connected, setConnected] = useState(false);
   const [connecting, setConnecting] = useState(false);
@@ -53,6 +55,7 @@ export function useOnlineGame() {
         if (!msg.state.inGame) {
           setView(null);
           setDrawnTileId(null);
+          prevHandIdsRef.current = [];
           setGameLog([]);
           setGameAbortWarning(null);
           abortEndsAtRef.current = null;
@@ -86,10 +89,29 @@ export function useOnlineGame() {
         }
         if (abortPendingRef.current) return;
 
+        const viewer = nextView.viewer;
+        if (nextView.phase === 'dealing') {
+          prevHandIdsRef.current = [];
+        }
+
+        const serverHint = nextView.lastDrawnTileId ?? payload.lastDrawnTileId ?? null;
+        const { drawnId, handIds } = resolveOnlineDrawnTileId(
+          nextView,
+          viewer,
+          serverHint,
+          prevHandIdsRef.current,
+        );
+        prevHandIdsRef.current = handIds;
+
+        const viewWithDrawn =
+          drawnId !== nextView.lastDrawnTileId
+            ? { ...nextView, lastDrawnTileId: drawnId }
+            : nextView;
+
         setError(null);
-        setView(nextView);
-        setPlayerIndex((prev) => prev ?? nextView.viewer);
-        setDrawnTileId(payload.lastDrawnTileId ?? null);
+        setView(viewWithDrawn);
+        setPlayerIndex((prev) => prev ?? viewWithDrawn.viewer);
+        setDrawnTileId(drawnId);
         setGameLog(payload.log ?? []);
         setRoomState((prev) =>
           prev
@@ -117,6 +139,7 @@ export function useOnlineGame() {
         abortPendingRef.current = false;
         setView(null);
         setDrawnTileId(null);
+        prevHandIdsRef.current = [];
         setGameLog([]);
         setGameAbortWarning(null);
         abortEndsAtRef.current = null;
@@ -150,6 +173,7 @@ export function useOnlineGame() {
       setRoomState(null);
       setPlayerIndex(null);
       setDrawnTileId(null);
+      prevHandIdsRef.current = [];
       setGameLog([]);
       setGameAbortWarning(null);
       setLobbyNotice(null);
@@ -188,6 +212,7 @@ export function useOnlineGame() {
         setRoomState(null);
         setView(null);
         setDrawnTileId(null);
+        prevHandIdsRef.current = [];
         setGameLog([]);
         setGameAbortWarning(null);
         abortEndsAtRef.current = null;
@@ -209,6 +234,7 @@ export function useOnlineGame() {
     setRoomState(null);
     setView(null);
     setDrawnTileId(null);
+    prevHandIdsRef.current = [];
     setGameLog([]);
     setGameAbortWarning(null);
     setLobbyNotice(null);

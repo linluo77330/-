@@ -65,7 +65,6 @@ export class Room {
   private drawTimer: ReturnType<typeof setTimeout> | null = null;
   private botTimer: ReturnType<typeof setTimeout> | null = null;
   private abortTimer: ReturnType<typeof setTimeout> | null = null;
-  private lastDrawnTileId: Partial<Record<PlayerIndex, string>> = {};
   private gameLog: GameLogEntry[] = [];
   private lastDiscardFrom: PlayerIndex | null = null;
   private unsubs: Array<() => void> = [];
@@ -344,7 +343,6 @@ export class Room {
       this.seats.filter((s) => s.kind === 'bot').map((s) => s.playerIndex),
     );
     this.game = new MahjongGame();
-    this.lastDrawnTileId = {};
     this.gameLog = [];
     this.lastDiscardFrom = null;
     resetGameLogSequence();
@@ -379,8 +377,6 @@ export class Room {
 
     const syncEvents: GameEventName[] = [
       'phase_change',
-      'after_draw',
-      'after_discard',
       'after_response',
       'response_window_open',
       'response_level_change',
@@ -403,26 +399,26 @@ export class Room {
       this.scheduleBotActions();
     };
 
+    this.unsubs.push(
+      this.game.on('after_draw', () => {
+        onSync();
+      }),
+    );
+
+    this.unsubs.push(
+      this.game.on('after_discard', (payload) => {
+        this.lastDiscardFrom = payload.player;
+        this.gameLog = appendGameLogEntry(this.gameLog, createDiscardLog(payload));
+        onSync();
+      }),
+    );
+
     for (const event of syncEvents) {
       this.unsubs.push(this.game.on(event, () => {
         onSync();
         return undefined;
       }));
     }
-
-    this.unsubs.push(
-      this.game.on('after_draw', (payload) => {
-        this.lastDrawnTileId[payload.player] = payload.tile.id;
-      }),
-    );
-
-    this.unsubs.push(
-      this.game.on('after_discard', (payload) => {
-        delete this.lastDrawnTileId[payload.player];
-        this.lastDiscardFrom = payload.player;
-        this.gameLog = appendGameLogEntry(this.gameLog, createDiscardLog(payload));
-      }),
-    );
 
     this.unsubs.push(
       this.game.on('after_response', (payload) => {
@@ -504,8 +500,6 @@ export class Room {
     this.game = null;
     this.matchState = null;
     this.inGame = false;
-    this.lastDrawnTileId = {};
-    this.lastDiscardFrom = null;
     this.broadcastRoomState();
   }
 
@@ -538,7 +532,6 @@ export class Room {
       ];
       const mask = activePlayersMask(this.matchState);
       this.game.setPlayerActive(mask);
-      this.lastDrawnTileId = {};
       this.game.start(this.matchState.dealer, playerCharacters, { playerActive: mask });
       this.broadcastGameState();
       this.scheduleAutoDraw();
@@ -851,7 +844,6 @@ export class Room {
 
     this.game = null;
     this.inGame = false;
-    this.lastDrawnTileId = {};
 
     for (const seat of this.seats) {
       if (seat.kind === 'human') {
@@ -877,6 +869,7 @@ export class Room {
   broadcastGameState(): void {
     if (!this.game || this.abortTimer) return;
     const matchView = this.matchState ? toMatchViewState(this.matchState) : null;
+    const snap = this.game.getSnapshot();
     for (const seat of this.seats) {
       if (!seat.ws) continue;
       const view = {
@@ -887,7 +880,7 @@ export class Room {
         type: 'game_state',
         state: {
           view,
-          lastDrawnTileId: this.lastDrawnTileId[seat.playerIndex] ?? null,
+          lastDrawnTileId: snap.lastDrawnTileIds[seat.playerIndex] ?? null,
           log: this.gameLog,
         },
       });

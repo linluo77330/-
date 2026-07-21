@@ -24,9 +24,7 @@ const SYNC_EVENTS: GameEventName[] = [
   'phase_change',
   'turn_change',
   'before_draw',
-  'after_draw',
   'before_discard',
-  'after_discard',
   'before_response',
   'after_response',
   'response_pass',
@@ -64,6 +62,13 @@ export function useMahjongGame() {
     setSnapshot(game.getSnapshot());
     setCountdownTick((t) => t + 1);
   }, [game]);
+
+  const syncDrawnHighlight = useCallback(
+    (player: PlayerIndex) => {
+      setDrawnTileId(game.getSnapshot().lastDrawnTileIds[player] ?? null);
+    },
+    [game],
+  );
 
   const clearIntermissionTimers = useCallback(() => {
     if (intermissionTimerRef.current) clearTimeout(intermissionTimerRef.current);
@@ -146,23 +151,21 @@ export function useMahjongGame() {
 
   useEffect(() => {
     const unsubs = [
+      game.on('after_draw', (payload) => {
+        syncDrawnHighlight(payload.player);
+        refresh();
+      }),
+      game.on('after_discard', (payload) => {
+        lastDiscardFromRef.current = payload.player;
+        syncDrawnHighlight(payload.player);
+        refresh();
+      }),
       ...SYNC_EVENTS.map((event) =>
         game.on(event, () => {
           refresh();
           return undefined;
         }),
       ),
-      game.on('after_draw', (payload) => {
-        if (payload.player === 0) {
-          setDrawnTileId(payload.tile.id);
-        }
-      }),
-      game.on('after_discard', (payload) => {
-        lastDiscardFromRef.current = payload.player;
-        if (payload.player === 0) {
-          setDrawnTileId(null);
-        }
-      }),
       game.on('game_over', () => {
         handleRoundEnd(playerCharactersRef.current);
         return undefined;
@@ -172,7 +175,7 @@ export function useMahjongGame() {
       unsubs.forEach((off) => off());
       clearIntermissionTimers();
     };
-  }, [game, refresh, handleRoundEnd, clearIntermissionTimers]);
+  }, [game, refresh, handleRoundEnd, clearIntermissionTimers, syncDrawnHighlight]);
 
   const startMatch = useCallback(
     (
@@ -207,7 +210,9 @@ export function useMahjongGame() {
 
   const drawWall = useCallback(() => {
     game.drawCard();
-  }, [game]);
+    syncDrawnHighlight(0);
+    refresh();
+  }, [game, refresh, syncDrawnHighlight]);
 
   const activateSkill = useCallback(
     (skillId: string) => {
@@ -268,8 +273,10 @@ export function useMahjongGame() {
   const discard = useCallback(
     (tileId: string) => {
       game.discardCard(tileId);
+      syncDrawnHighlight(0);
+      refresh();
     },
-    [game],
+    [game, refresh, syncDrawnHighlight],
   );
 
   const declareConcealedKong = useCallback(

@@ -66,6 +66,11 @@ export function Tile({
       aria-label={faceDown ? '牌背' : tileLabel(tile)}
       style={{ width, height }}
     >
+      {isDrawn && !faceDown && (
+        <span className="tile__drawn-badge" aria-hidden="true">
+          摸
+        </span>
+      )}
       <img
         className="tile__img"
         src={src}

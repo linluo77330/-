@@ -1,3 +1,5 @@
+import { getCharacterMaxHp as lookupCharacterMaxHp } from '../../shared/characterMaxHp';
+
 export interface CharacterSkill {
   id: string;
   name: string;
@@ -24,7 +26,7 @@ export const SHOU_DUAN_ZHE: Character = {
   description:
     '手短者手很短，大家好心的让他从自己打出的牌中摸牌，但手短者摸到第三次时，大家的同情心耗尽，不让他继续从打出的牌里摸了。',
   accent: '#b32428',
-  maxHp: 3,
+  maxHp: lookupCharacterMaxHp('shou_duan_zhe'),
   skill: {
     id: 'let_me_draw',
     name: '（限定技）让让我吧😭',
@@ -60,7 +62,7 @@ export const JUE_WANG_DE_WEN_MANG: Character = {
   description:
     '绝望的文盲很绝望，每次看到有字的牌只想赶紧摆脱它们，事情会如愿吗？',
   accent: '#2d7d46',
-  maxHp: 3,
+  maxHp: lookupCharacterMaxHp('jue_wang_de_wen_mang'),
   skill: {
     id: 'cant_read',
     name: '我看不懂啊',
@@ -77,7 +79,7 @@ export const DUI_KANG_LU_GALUO: Character = {
   tagline: '一秒四破',
   description: '大家都不相信伽罗能走对抗路，但她真的很适合对抗',
   accent: '#6b3fa0',
-  maxHp: 3,
+  maxHp: lookupCharacterMaxHp('dui_kang_lu_galuo'),
   skill: {
     id: 'instant_win_vote',
     name: '一秒四破',
@@ -94,7 +96,7 @@ export const LING_SHI_DA_ZONG_TONG: Character = {
   tagline: '窃取胜利果实',
   description: '零食大总统擅长窃取胜利果实，要小心ta的黑手！',
   accent: '#c45c26',
-  maxHp: 3,
+  maxHp: lookupCharacterMaxHp('ling_shi_da_zong_tong'),
   skill: {
     id: 'steal_victory',
     name: '窃取胜利果实',
@@ -128,7 +130,7 @@ export const JIE_DONG_XI_ZHI_REN: Character = {
   tagline: '有借有还 再借不难 什么时候还呢？下次吧。',
   description: '有借有还 再借不难 什么时候还呢？下次吧。',
   accent: '#5b6eae',
-  maxHp: 3,
+  maxHp: lookupCharacterMaxHp('jie_dong_xi_zhi_ren'),
   skill: {
     id: 'borrow_tile',
     name: '同学这个借我用一下',
@@ -145,7 +147,7 @@ export const WEN_QU_XING_Y: Character = {
   tagline: '为什么不来一个文曲星 可以改某些万字的数 一二三',
   description: '为什么不来一个文曲星 可以改某些万字的数 一二三',
   accent: '#2e6b8a',
-  maxHp: 3,
+  maxHp: lookupCharacterMaxHp('wen_qu_xing_y'),
   skill: {
     id: 'wen_qu_descends',
     name: '（限定技）文曲下凡',
@@ -171,9 +173,7 @@ export function getCharacterById(id: string): Character | undefined {
   return CHARACTERS.find((c) => c.id === id);
 }
 
-export function getCharacterMaxHp(characterId: string): number {
-  return getCharacterById(characterId)?.maxHp ?? 3;
-}
+export { getCharacterMaxHp } from '../../shared/characterMaxHp';
 
 export function getSkillUsesRemaining(characterId: string, usesSpent: number): number | undefined {
   const character = getCharacterById(characterId);

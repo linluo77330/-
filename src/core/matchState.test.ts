@@ -6,6 +6,7 @@ import {
   createInitialMatchState,
   isMatchFinished,
   processRoundEnd,
+  resolveHpWinType,
 } from './matchState.js';
 
 describe('matchState', () => {
@@ -20,6 +21,40 @@ describe('matchState', () => {
   it('点炮：仅放铳者扣 1 生命', () => {
     const changes = computeHpChanges(1, 'deal_in', 0, null);
     expect(changes).toEqual([{ player: 0, delta: -1, reason: 'deal_in' }]);
+  });
+
+  it('黑手窃取自摸：继承自摸扣血，其余三人各扣 1 生命', () => {
+    expect(resolveHpWinType('skill_steal', { tile: { id: 't1', suit: 'wan', rank: 1 }, isSelfDraw: true })).toBe(
+      'self_draw',
+    );
+    const after = processRoundEnd(createInitialMatchState([3, 3, 3, 3], 1), {
+      winner: 0,
+      gameOverReason: 'skill_steal',
+      winInfo: { tile: { id: 't1', suit: 'wan', rank: 1 }, isSelfDraw: true },
+      lastDiscardFrom: null,
+      stealTarget: 1,
+    });
+    expect(after.lastRoundSummary?.winType).toBe('skill_steal');
+    expect(after.lastRoundSummary?.hpChanges.map((c) => c.player).sort()).toEqual([1, 2, 3]);
+    expect(after.hp).toEqual([3, 2, 2, 2]);
+  });
+
+  it('黑手窃取点炮：继承点炮扣血，仅放铳者扣 1 生命', () => {
+    expect(resolveHpWinType('skill_steal', { tile: { id: 't1', suit: 'wan', rank: 1 }, isSelfDraw: false })).toBe(
+      'deal_in',
+    );
+    const after = processRoundEnd(createInitialMatchState([3, 3, 3, 3], 1), {
+      winner: 0,
+      gameOverReason: 'skill_steal',
+      winInfo: { tile: { id: 't1', suit: 'wan', rank: 1 }, isSelfDraw: false },
+      lastDiscardFrom: 2,
+      stealTarget: 1,
+    });
+    expect(after.lastRoundSummary?.winType).toBe('skill_steal');
+    expect(after.lastRoundSummary?.hpChanges).toEqual([
+      { player: 2, delta: -1, reason: 'deal_in' },
+    ]);
+    expect(after.hp).toEqual([3, 3, 2, 3]);
   });
 
   it('三名玩家淘汰后剩 1 人，整场结束', () => {

@@ -32,6 +32,18 @@ import { RoundSummaryOverlay } from './RoundSummaryOverlay';
 
 type GameApi = ReturnType<typeof useMahjongGame>;
 
+function resolveDrawnHighlightId(
+  view: import('@/core/types').PlayerView,
+  humanPlayer: PlayerIndex,
+  fallbackId: string | null,
+): string | null {
+  const candidate = view.lastDrawnTileId ?? fallbackId;
+  if (!candidate) return null;
+  const hand = view.players[humanPlayer]?.hand;
+  if (hand?.kind !== 'visible') return null;
+  return hand.tiles.some((tile) => tile.id === candidate) ? candidate : null;
+}
+
 type GameTableProps =
   | {
       mode: 'offline';
@@ -346,6 +358,8 @@ function GameTableLayout({
     position: SEAT_POSITIONS[relativeSeat(humanPlayer, index)],
   }));
 
+  const humanDrawnHighlightId = resolveDrawnHighlightId(view, humanPlayer, drawnTileId);
+
   const winnerWinHandDisplay = useMemo(() => {
     if (view.phase !== 'game_over' || view.winner === null || !view.winInfo) return null;
     const winnerState = view.players[view.winner];
@@ -472,7 +486,7 @@ function GameTableLayout({
               wildcard={view.wildcard}
               highlightTileId={
                 index === humanPlayer
-                  ? drawnTileId
+                  ? humanDrawnHighlightId
                   : view.phase === 'game_over' &&
                       view.winner === index &&
                       view.winInfo?.isSelfDraw

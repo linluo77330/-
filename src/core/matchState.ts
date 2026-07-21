@@ -40,9 +40,9 @@ export const ROUND_INTERMISSION_MS = 5000;
 
 export const DEFAULT_SURVIVORS_TO_WIN = 1;
 
-export function getCharacterMaxHp(_characterId: string): number {
-  return 3;
-}
+import { getCharacterMaxHp } from '../shared/characterMaxHp.js';
+
+export { getCharacterMaxHp };
 
 export function createInitialMatchState(
   maxHpByPlayer: [number, number, number, number],
@@ -102,6 +102,17 @@ export function resolveRoundWinType(
   if (reason === 'skill_steal') return 'skill_steal';
   if (reason === 'draw') return 'draw';
   return 'none';
+}
+
+/** 扣血所依据的胡牌方式；黑手窃取成功时继承被窃取者的胡牌类型 */
+export function resolveHpWinType(
+  reason: GameOverReason | null,
+  winInfo: WinInfo | null,
+): RoundWinType {
+  if (reason === 'skill_steal' && winInfo) {
+    return winInfo.isSelfDraw ? 'self_draw' : 'deal_in';
+  }
+  return resolveRoundWinType(reason, winInfo);
 }
 
 export function computeHpChanges(
@@ -179,9 +190,10 @@ export interface RoundEndInput {
 
 export function processRoundEnd(state: MatchState, input: RoundEndInput): MatchState {
   const winType = resolveRoundWinType(input.gameOverReason, input.winInfo);
+  const hpWinType = resolveHpWinType(input.gameOverReason, input.winInfo);
   const discarder =
-    winType === 'deal_in' && input.lastDiscardFrom !== null ? input.lastDiscardFrom : null;
-  const hpChanges = computeHpChanges(input.winner, winType, discarder, input.stealTarget);
+    hpWinType === 'deal_in' && input.lastDiscardFrom !== null ? input.lastDiscardFrom : null;
+  const hpChanges = computeHpChanges(input.winner, hpWinType, discarder, input.stealTarget);
 
   const afterHp = applyHpChanges(state, hpChanges);
   const summary: RoundSummary = {

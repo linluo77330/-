@@ -444,6 +444,7 @@ export function normalizePlayerView(
     blackHandTarget: raw.blackHandTarget ?? null,
     gameOverReason: raw.gameOverReason ?? null,
     match: raw.match ?? null,
+    lastDrawnTileId: raw.lastDrawnTileId ?? null,
   };
 
   return refreshPlayerViewSkills({
@@ -502,6 +503,7 @@ export function buildPlayerView(
       snapshot.blackHandOwner === viewer ? snapshot.blackHandTarget : null,
     gameOverReason: snapshot.gameOverReason,
     match,
+    lastDrawnTileId: snapshot.lastDrawnTileIds[viewer] ?? null,
   };
 }
 

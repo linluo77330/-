@@ -232,7 +232,7 @@ export function OnlineLobbyScreen({ online, character, onBack }: OnlineLobbyScre
                 </select>
               </label>
               <p className="online-lobby__match-config-hint">
-                每名玩家有 3 点生命；自摸时其余人扣血，点炮时放铳者扣血。生命归零淘汰，直至场上剩 {survivorsToWin} 人。
+                每名玩家起始生命因角色而异；自摸时其余人扣血，点炮时放铳者扣血。生命归零淘汰，直至场上剩 {survivorsToWin} 人。
               </p>
             </div>
           )}
